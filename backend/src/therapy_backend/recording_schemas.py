@@ -114,3 +114,37 @@ class StoredRecordingChunk(RecordingChunkRequest):
 class RecordingPage(RecordingModel):
     chunks: list[StoredRecordingChunk]
     next_after_seq: NonnegativeInt | None
+
+
+class RecordingRepBoundary(RecordingModel):
+    frame_index: Annotated[int, Field(strict=True, ge=0, le=24)]
+    rep_number: Annotated[int, Field(strict=True, ge=0, le=100)]
+
+
+class RecordingIndexChunk(RecordingModel):
+    seq: NonnegativeInt
+    run_id: UUID
+    set_ordinal: Annotated[int, Field(strict=True, ge=0, le=119)]
+    exercise_id: UUID
+    side: Literal["left", "right"]
+    frame_count: Annotated[int, Field(strict=True, ge=1, le=25)]
+    first_elapsed_ms: Annotated[
+        float, Field(strict=True, ge=0, le=86400000, allow_inf_nan=False)
+    ]
+    last_elapsed_ms: Annotated[
+        float, Field(strict=True, ge=0, le=86400000, allow_inf_nan=False)
+    ]
+    rep_boundaries: list[RecordingRepBoundary]
+
+
+class RecordingWorldBounds(RecordingModel):
+    min_x: Annotated[float, Field(strict=True, allow_inf_nan=False)]
+    min_y: Annotated[float, Field(strict=True, allow_inf_nan=False)]
+    max_x: Annotated[float, Field(strict=True, allow_inf_nan=False)]
+    max_y: Annotated[float, Field(strict=True, allow_inf_nan=False)]
+
+
+class RecordingIndexPage(RecordingModel):
+    chunks: list[RecordingIndexChunk]
+    bounds: RecordingWorldBounds | None
+    next_after_seq: NonnegativeInt | None
