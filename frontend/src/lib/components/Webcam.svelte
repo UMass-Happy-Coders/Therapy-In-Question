@@ -11,22 +11,32 @@
 	let stream: MediaStream | null = null;
 	let error = $state('');
 	let ready = $state(false);
+	let pending = $state(false);
 	let destroyed = false;
 
-	onMount(() => (ready = true));
+	onMount(() => {
+		ready = true;
+	});
 
 	async function start() {
+		if (pending || live) return;
 		error = '';
 		if (!navigator.mediaDevices?.getUserMedia) {
 			error = 'Camera unavailable: open the site over HTTPS or on localhost.';
 			return;
 		}
+		pending = true;
 		try {
 			stream = await navigator.mediaDevices.getUserMedia({
 				video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
 				audio: false
 			});
+			if (destroyed) return stop();
+			video!.srcObject = stream;
+			await video!.play();
+			live = true;
 		} catch (e) {
+			stop();
 			const name = e instanceof DOMException ? e.name : '';
 			error =
 				name === 'NotAllowedError'
@@ -36,12 +46,9 @@
 						: name === 'NotReadableError'
 							? 'Camera is in use by another app.'
 							: `Could not start camera: ${e}`;
-			return;
+		} finally {
+			pending = false;
 		}
-		if (destroyed) return stop();
-		video!.srcObject = stream;
-		await video!.play();
-		live = true;
 	}
 
 	function stop() {
@@ -58,15 +65,17 @@
 </script>
 
 <div class="webcam">
-	<video bind:this={video} playsinline muted></video>
+	<video bind:this={video} playsinline muted aria-label="Your camera preview"></video>
 
 	{#if !live}
 		<div class="overlay">
-			<button onclick={start} disabled={!ready}>Start camera</button>
-			{#if error}<p class="error">{error}</p>{/if}
+			<button onclick={start} disabled={!ready || pending}>
+				{pending ? 'Starting camera...' : 'Start camera'}
+			</button>
+			{#if error}<p class="error" role="alert">{error}</p>{/if}
 		</div>
 	{:else}
-		<button class="stop" onclick={stop}>Stop</button>
+		<button class="stop" onclick={stop}>Stop camera</button>
 	{/if}
 </div>
 
@@ -76,7 +85,8 @@
 		width: 100%;
 		max-width: 960px;
 		aspect-ratio: 16 / 9;
-		background: #111;
+		min-height: 12rem;
+		background: var(--camera-background);
 		border-radius: 8px;
 		overflow: hidden;
 	}
@@ -95,11 +105,11 @@
 		place-content: center;
 		gap: 0.75rem;
 		text-align: center;
-		color: #eee;
+		color: var(--surface);
 	}
 
 	.error {
-		color: #ff8a80;
+		color: var(--camera-error);
 		max-width: 40ch;
 	}
 

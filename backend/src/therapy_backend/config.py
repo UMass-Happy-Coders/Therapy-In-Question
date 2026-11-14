@@ -1,7 +1,7 @@
 from functools import lru_cache
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,7 +13,8 @@ class Settings(BaseSettings):
     mongodb_db: str = "therapy"
     gemini_api_key: str
     gemini_model: str = "gemini-3.5-flash-lite"
-    jwt_secret: str
+    jwt_secret: str = Field(min_length=32)
+    cookie_secure: bool = True
 
     @field_validator("database_url")
     @classmethod

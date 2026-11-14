@@ -1,6 +1,8 @@
 # HTTPS overlay for the Vultr VPS: Let's Encrypt certs for $DOMAIN, HTTP redirected to HTTPS.
 services:
   backend:
+    environment:
+      COOKIE_SECURE: "true"
     labels:
       traefik.http.routers.backend.entrypoints: websecure
       traefik.http.routers.backend.tls.certresolver: le

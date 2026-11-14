@@ -3,10 +3,12 @@ import logging
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, FastAPI, Request, Response
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import text
+from starlette.middleware.base import RequestResponseEndpoint
 
+from .auth import router as auth_router
 from .db import engine, mongo
 
 log = logging.getLogger(__name__)
@@ -29,6 +31,26 @@ app = FastAPI(
 )
 
 api = APIRouter(prefix="/api")
+api.include_router(auth_router)
+
+
+@app.middleware("http")
+async def no_store_auth(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
+    response = await call_next(request)
+    if request.url.path.startswith(("/api/auth/", "/api/therapist/")):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.exception_handler(Exception)
+async def internal_error(request: Request, exc: Exception) -> Response:
+    return PlainTextResponse(
+        "Internal Server Error",
+        status_code=500,
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 async def _ping_postgres() -> None:
