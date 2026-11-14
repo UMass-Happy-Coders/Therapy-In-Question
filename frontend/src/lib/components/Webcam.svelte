@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import ClinicalLimits from '#lib/components/ClinicalLimits.svelte';
 
 	interface Props {
 		video?: HTMLVideoElement;
@@ -63,6 +64,10 @@
 		stop();
 	});
 </script>
+
+<div class="mb-4">
+	<ClinicalLimits />
+</div>
 
 <div class="webcam">
 	<video bind:this={video} playsinline muted aria-label="Your camera preview"></video>
