@@ -4,7 +4,12 @@ import { error, type Cookies } from '@sveltejs/kit';
 export const sessionCookie = 'tiq_session';
 
 export async function backendGet(
-	path: '/api/auth/me' | '/api/therapist/patients',
+	path:
+		| '/api/auth/me'
+		| '/api/therapist/patients'
+		| '/api/exercises'
+		| '/api/therapist/programs'
+		| '/api/patient/programs',
 	cookies: Cookies
 ): Promise<Response> {
 	const session = cookies.get(sessionCookie);
