@@ -80,3 +80,50 @@ CREATE TABLE IF NOT EXISTS program_assignments (
 );
 
 CREATE INDEX IF NOT EXISTS program_assignments_patient_idx ON program_assignments (patient_id);
+
+CREATE TABLE IF NOT EXISTS exercise_sessions (
+    id UUID PRIMARY KEY,
+    patient_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    clinic_id UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
+    assignment_id UUID NOT NULL,
+    session_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'in_progress',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ,
+    program_snapshot JSONB NOT NULL,
+    CONSTRAINT exercise_sessions_patient_assignment_date_key
+        UNIQUE (patient_id, assignment_id, session_date),
+    CONSTRAINT exercise_sessions_status_check CHECK (status IN ('in_progress', 'completed')),
+    CONSTRAINT exercise_sessions_completion_check CHECK (
+        (status = 'in_progress' AND completed_at IS NULL) OR
+        (status = 'completed' AND completed_at IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS exercise_sessions_patient_date_idx
+    ON exercise_sessions (patient_id, session_date);
+
+CREATE TABLE IF NOT EXISTS exercise_session_sets (
+    session_id UUID NOT NULL REFERENCES exercise_sessions(id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    exercise_id UUID NOT NULL,
+    set_number INTEGER NOT NULL,
+    reps_completed INTEGER NOT NULL,
+    elapsed_seconds DOUBLE PRECISION NOT NULL,
+    pain INTEGER NOT NULL,
+    difficulty INTEGER NOT NULL,
+    comfort INTEGER NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (session_id, ordinal),
+    CONSTRAINT exercise_session_sets_exercise_number_key
+        UNIQUE (session_id, exercise_id, set_number),
+    CONSTRAINT exercise_session_sets_ordinal_check CHECK (ordinal BETWEEN 0 AND 119),
+    CONSTRAINT exercise_session_sets_number_check CHECK (set_number BETWEEN 1 AND 10),
+    CONSTRAINT exercise_session_sets_reps_check CHECK (reps_completed BETWEEN 0 AND 1000),
+    CONSTRAINT exercise_session_sets_elapsed_check CHECK (elapsed_seconds BETWEEN 0 AND 86400),
+    CONSTRAINT exercise_session_sets_pain_check CHECK (pain BETWEEN 0 AND 10),
+    CONSTRAINT exercise_session_sets_difficulty_check CHECK (difficulty BETWEEN 0 AND 10),
+    CONSTRAINT exercise_session_sets_comfort_check CHECK (comfort BETWEEN 0 AND 10),
+    CONSTRAINT exercise_session_sets_notes_check CHECK (char_length(notes) <= 1000)
+);
