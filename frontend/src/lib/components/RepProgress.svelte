@@ -34,7 +34,13 @@
 		<div>
 			<dt class="mb-1 font-semibold">Hold progress</dt>
 			<dd class="m-0">
-				<output aria-label="Hold progress" class="text-lg tabular-nums">{(holdElapsedMs / 1000).toFixed(1)} / {(holdMs / 1000).toFixed(1)} s</output>
+				<output aria-label="Hold progress" class="text-lg tabular-nums">
+					{#if holdMs > 0}
+						{(holdElapsedMs / 1000).toFixed(1)} / {(holdMs / 1000).toFixed(1)} s
+					{:else}
+						No hold
+					{/if}
+				</output>
 			</dd>
 		</div>
 	</dl>

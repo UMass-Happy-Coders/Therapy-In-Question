@@ -311,7 +311,7 @@
 			{reps}
 			{phase}
 			{holdElapsedMs}
-			holdMs={profile.holdMs}
+			holdMs={exercise.hold_seconds * 1000}
 			cue={session === 'running' || session === 'paused' ? repCue : null}
 		/>
 		<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} />
