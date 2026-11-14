@@ -11,7 +11,9 @@ export async function backendGet(
 		| '/api/patient/messages'
 		| '/api/exercises'
 		| '/api/therapist/programs'
-		| '/api/patient/programs',
+		| '/api/patient/programs'
+		| '/api/patient/sessions/today'
+		| `/api/patient/sessions/${string}`,
 	cookies: Cookies
 ): Promise<Response> {
 	const session = cookies.get(sessionCookie);
