@@ -112,6 +112,9 @@
 			<div><dt>Active time</dt><dd class="m-0 text-3xl font-semibold tabular-nums">{activeTime(activeSeconds)}</dd></div>
 		</dl>
 		<MovementRecording state={recording} onretry={retryRecording} />
+		{#if recording.totals && recording.totals.frames > 0}
+			<a href={`/patient/session/${session.id}/playback`} class="button mb-8">Play skeleton recording</a>
+		{/if}
 		<table class="w-full border-collapse text-left">
 			<caption class="mb-5 text-left text-xl font-semibold">Saved set logs</caption>
 			<thead class="bg-[var(--ash-grey)]">
