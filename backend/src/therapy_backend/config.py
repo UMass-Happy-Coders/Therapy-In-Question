@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def to_asyncpg(cls, url: str) -> str:
-        """Accept the plain postgres:// URL TigerData hands out and adapt it for asyncpg."""
         parts = urlsplit(url)
         scheme = (
             "postgresql+asyncpg"
@@ -33,4 +32,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()  
+    return Settings()
