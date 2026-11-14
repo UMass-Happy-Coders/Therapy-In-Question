@@ -12,6 +12,7 @@ from .auth import router as auth_router
 from .db import engine, mongo
 from .messages import router as messages_router
 from .programs import router as programs_router
+from .sessions import router as sessions_router
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ api = APIRouter(prefix="/api")
 api.include_router(auth_router)
 api.include_router(messages_router)
 api.include_router(programs_router)
+api.include_router(sessions_router)
 
 
 @app.middleware("http")
