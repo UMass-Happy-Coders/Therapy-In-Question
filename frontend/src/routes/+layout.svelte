@@ -1,10 +1,15 @@
 <script lang="ts">
 	import '../app.css';
+	import { page } from '$app/state';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
 	let logoutPending = $state(false);
 	let logoutError = $state('');
+	const workspacePath = $derived(data.user?.role === 'therapist' ? '/therapist' : '/patient');
+	const messagesPath = $derived(
+		data.user?.role === 'therapist' ? '/therapist/messages' : '/patient/inbox'
+	);
 
 	async function logout() {
 		if (logoutPending) return;
@@ -35,6 +40,12 @@
 		<a class="wordmark" href="/" data-sveltekit-reload>Therapy in Question</a>
 		{#if data.user}
 			<div class="account">
+				<nav aria-label="Workspace" class="flex items-center gap-5 text-sm">
+					<a href={workspacePath} aria-current={page.url.pathname === workspacePath ? 'page' : undefined}>Workspace</a>
+					<a href={messagesPath} aria-current={page.url.pathname === messagesPath ? 'page' : undefined}>
+						{data.user.role === 'therapist' ? 'Messages' : 'Inbox'}
+					</a>
+				</nav>
 				<div class="identity">
 					<span class="account-name">{data.user.full_name}</span>
 					<span class="muted">{data.user.clinic_name}</span>
