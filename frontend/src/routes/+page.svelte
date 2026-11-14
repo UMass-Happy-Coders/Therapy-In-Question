@@ -1,3 +1,10 @@
+<script lang="ts">
+	import { homeFor } from '#lib/auth.js';
+	import type { PageProps } from './$types';
+
+	let { data }: PageProps = $props();
+</script>
+
 <svelte:head>
 	<title>Home exercise programs - Therapy in Question</title>
 	<meta
@@ -15,7 +22,14 @@
 			<p class="mb-8 mt-6 max-w-[540px] text-xl leading-relaxed">
 				Your therapist sets the exercises and targets. Follow your routine and keep up with your program between visits.
 			</p>
-			<a href="/login" class="button">Open your workspace</a>
+			{#if data.user}
+				<a href={homeFor(data.user)} class="button">Return to your workspace</a>
+			{:else}
+				<nav aria-label="Choose your workspace" class="flex flex-wrap gap-3">
+					<a href="/patient" class="button">Patient workspace</a>
+					<a href="/therapist" class="button button-secondary">Therapist workspace</a>
+				</nav>
+			{/if}
 		</div>
 
 		<aside aria-labelledby="movements-heading" class="rounded-lg bg-[var(--ash-grey)] p-8">

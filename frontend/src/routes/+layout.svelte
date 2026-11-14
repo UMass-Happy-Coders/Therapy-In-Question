@@ -54,6 +54,12 @@
 					{logoutPending ? 'Signing out...' : 'Sign out'}
 				</button>
 			</div>
+		{:else if page.url.pathname === '/'}
+			<nav aria-label="About Therapy in Question" class="flex items-center gap-6 text-sm font-semibold">
+				<a href="/#how-it-works">How it works</a>
+				<a href="/#privacy">Privacy</a>
+				<a href="/login" class="button">Sign in</a>
+			</nav>
 		{/if}
 	</div>
 	{#if logoutError}
