@@ -10,6 +10,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from .auth import router as auth_router
 from .db import engine, mongo
+from .programs import router as programs_router
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ app = FastAPI(
 
 api = APIRouter(prefix="/api")
 api.include_router(auth_router)
+api.include_router(programs_router)
 
 
 @app.middleware("http")
@@ -39,7 +41,9 @@ async def no_store_auth(
     request: Request, call_next: RequestResponseEndpoint
 ) -> Response:
     response = await call_next(request)
-    if request.url.path.startswith(("/api/auth/", "/api/therapist/")):
+    if request.url.path.startswith(
+        ("/api/auth/", "/api/therapist/", "/api/patient/", "/api/exercises")
+    ):
         response.headers["Cache-Control"] = "no-store"
     return response
 
