@@ -19,12 +19,35 @@
 		</div>
 
 		<aside aria-labelledby="movements-heading" class="rounded-lg bg-[var(--ash-grey)] p-8">
-			<h2 id="movements-heading" class="mb-8 text-2xl!">Three movements.<br />One place to practice.</h2>
+			<h2 id="movements-heading" class="mb-8 text-2xl!">Supported exercises</h2>
 			<ul class="m-0 list-none space-y-6 p-0 text-lg font-semibold">
 				<li>Seated knee extension</li>
 				<li>Straight leg raise</li>
 				<li>Sit-to-stand</li>
 			</ul>
 		</aside>
+	</section>
+
+	<section id="how-it-works" aria-labelledby="workflow-heading" class="scroll-mt-8 pb-14">
+		<h2 id="workflow-heading" class="mb-8 text-3xl!">From your therapist to your routine</h2>
+		<ol class="m-0 grid list-none grid-cols-3 gap-12 p-0">
+			<li>
+				<h3 class="mb-3 text-xl font-semibold">Get your program</h3>
+				<p class="mb-0">Exercises, sets, reps, and movement targets assigned by your therapist.</p>
+			</li>
+			<li>
+				<h3 class="mb-3 text-xl font-semibold">Follow your routine</h3>
+				<p class="mb-0">Open each exercise from your program and use your camera as you move.</p>
+			</li>
+			<li>
+				<h3 class="mb-3 text-xl font-semibold">Hear from your therapist</h3>
+				<p class="mb-0">Read therapist-approved follow-ups in your patient inbox.</p>
+			</li>
+		</ol>
+	</section>
+
+	<section id="privacy" aria-labelledby="privacy-heading" class="grid scroll-mt-8 grid-cols-[0.9fr_1.1fr] items-center gap-12 rounded-lg bg-[var(--surface)] p-8">
+		<h2 id="privacy-heading" class="mb-0 text-3xl!">Movement tracking.<br />No video recordings.</h2>
+		<p class="mb-0 text-lg">Camera frames are processed in your browser, not saved as a video.</p>
 	</section>
 </main>
