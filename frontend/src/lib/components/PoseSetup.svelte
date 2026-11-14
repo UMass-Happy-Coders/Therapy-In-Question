@@ -23,7 +23,7 @@
 	let stabilizing = $state(false);
 	let joints = $state<readonly RequiredJoint[]>([]);
 	let elapsedMs = $state(0);
-	let gate = new FramingGate(exercise.exercise_type, 'left');
+	let gate: FramingGate;
 	let generation = 0;
 	let lastFrameAt = 0;
 	let accumulatedMs = 0;
@@ -226,8 +226,7 @@
 		<Webcam bind:video bind:live />
 		<canvas
 			bind:this={canvas}
-			role="img"
-			aria-label="Pose skeleton overlay"
+			aria-hidden="true"
 			class="pointer-events-none absolute inset-0 h-full w-full -scale-x-100 object-contain"
 		></canvas>
 	</section>
