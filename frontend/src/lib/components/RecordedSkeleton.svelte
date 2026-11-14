@@ -96,7 +96,7 @@
 		width="960"
 		height="640"
 		aria-hidden="true"
-		class="aspect-[3/2] h-auto w-full bg-(--surface)"
+		class="aspect-[3/2] h-auto max-h-[min(44vh,28rem)] w-full object-contain bg-(--surface)"
 	>
 		Recorded movement skeleton for frame {frameNumber}. This browser cannot display the canvas.
 	</canvas>

@@ -144,6 +144,7 @@
 					max={index.frames - 1}
 					step="1"
 					value={position}
+					aria-label="Playback position"
 					aria-valuetext={`Frame ${position + 1} of ${index.frames}`}
 					oninput={(event) => { repSelection = ''; void seek(Number(event.currentTarget.value)); }}
 					class="mt-3 h-11 w-full cursor-pointer accent-[var(--chocolate-plum)]"
