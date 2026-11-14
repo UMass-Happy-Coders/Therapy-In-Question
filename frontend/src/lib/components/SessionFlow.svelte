@@ -36,6 +36,11 @@
 	});
 
 	onDestroy(() => recorder.dispose());
+
+	async function retryRecording() {
+		if (await recorder.retry()) errorMessage = '';
+	}
+
 	const scores = Array.from({ length: 11 }, (_, index) => index);
 	const plan = $derived(sessionSteps(session.program));
 	const step = $derived(plan[session.sets.length]!);
@@ -56,7 +61,7 @@
 		saveStatus = null;
 		try {
 			if (!await recorder.flush()) {
-				errorMessage = 'Movement data is not saved. Retry recording before saving this set.';
+				errorMessage = 'Set was not saved. Retry recording before saving this set.';
 				return;
 			}
 			const response = await fetch(`/api/patient/sessions/${session.id}/sets`, {
@@ -106,7 +111,7 @@
 			<div><dt>Reps recorded</dt><dd class="m-0 text-3xl font-semibold">{recordedReps} / {plannedReps}</dd></div>
 			<div><dt>Active time</dt><dd class="m-0 text-3xl font-semibold tabular-nums">{activeTime(activeSeconds)}</dd></div>
 		</dl>
-		<MovementRecording state={recording} onretry={() => { void recorder.retry(); }} />
+		<MovementRecording state={recording} onretry={retryRecording} />
 		<table class="w-full border-collapse text-left">
 			<caption class="mb-5 text-left text-xl font-semibold">Saved set logs</caption>
 			<thead class="bg-[var(--ash-grey)]">
@@ -139,7 +144,7 @@
 			<div><dt>{step.exercise.target_label}</dt><dd class="m-0 text-lg font-semibold">{step.exercise.target_angle} degrees</dd></div>
 			<div><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} seconds` : 'No hold'}</dd></div>
 		</dl>
-		<MovementRecording state={recording} onretry={() => { void recorder.retry(); }} />
+		<MovementRecording state={recording} onretry={retryRecording} />
 		{#if measurement}
 			<section aria-labelledby="set-log-heading" class="max-w-4xl rounded-lg bg-[var(--surface)] p-8">
 				<h2 id="set-log-heading">Log set {step.set_number}</h2>
