@@ -1,4 +1,5 @@
 import type {
+	Landmark,
 	NormalizedLandmark,
 	PoseLandmarker,
 	PoseLandmarkerResult
@@ -9,7 +10,11 @@ export type TrackerStatus = 'loading' | 'tracking' | 'error';
 export interface PoseTrackingOptions {
 	video: HTMLVideoElement;
 	canvas: HTMLCanvasElement;
-	onFrame: (landmarks: readonly NormalizedLandmark[] | undefined, timestamp: number) => void;
+	onFrame: (
+		normalized: readonly NormalizedLandmark[] | undefined,
+		world: readonly Landmark[] | undefined,
+		timestamp: number
+	) => void;
 	onStatus: (status: TrackerStatus, error?: string) => void;
 }
 
@@ -53,7 +58,7 @@ export function startPoseTracking(options: PoseTrackingOptions): () => void {
 		clearCanvas();
 		if (!invalidated) {
 			invalidated = true;
-			onFrame(undefined, timestamp);
+			onFrame(undefined, undefined, timestamp);
 		}
 	}
 
@@ -154,7 +159,11 @@ export function startPoseTracking(options: PoseTrackingOptions): () => void {
 			context.fill();
 		}
 		invalidated = false;
-		onFrame(points !== undefined && points.length > 0 ? points : undefined, performance.now());
+		onFrame(
+			points !== undefined && points.length > 0 ? points : undefined,
+			result.worldLandmarks[0],
+			performance.now()
+		);
 	}
 
 	function tick() {
