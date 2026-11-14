@@ -2,12 +2,17 @@
 	import { onDestroy, untrack } from 'svelte';
 	import Webcam from '#lib/components/Webcam.svelte';
 	import JointAngles from '#lib/components/JointAngles.svelte';
+	import RepProgress from '#lib/components/RepProgress.svelte';
 	import { JointAngleEstimator } from '#lib/pose/angles.js';
 	import { FramingGate, type RequiredJoint, type TrackedSide } from '#lib/pose/framing.js';
+	import { RepCounter, makeRepSample } from '#lib/pose/rep-counter.js';
+	import { createRepProfile, type RepPhase } from '#lib/pose/rep-profile.js';
 	import { startPoseTracking, type TrackerStatus } from '#lib/pose/tracker.js';
 	import type { ProgramExercise } from '#lib/programs.js';
 
 	let { exercise }: { exercise: ProgramExercise } = $props();
+	const profile = untrack(() => createRepProfile(exercise));
+	const counter = untrack(() => new RepCounter(profile));
 
 	let video = $state<HTMLVideoElement>();
 	let canvas = $state<HTMLCanvasElement>();
@@ -28,6 +33,11 @@
 	let kneeFiltered = $state<number | null>(null);
 	let hipRaw = $state<number | null>(null);
 	let hipFiltered = $state<number | null>(null);
+	let heightAvailable = $state(false);
+	let reps = $state(0);
+	let phase = $state<RepPhase>('rest');
+	let holdElapsedMs = $state(0);
+	let repCue = $state<string | null>(null);
 	let elapsedMs = $state(0);
 	let gate: FramingGate;
 	let angleEstimator: JointAngleEstimator;
@@ -42,8 +52,12 @@
 		kneeFiltered !== null &&
 		(exercise.exercise_type === 'seated_knee_extension' || hipFiltered !== null)
 	);
+	const requiredHeightReady = $derived(
+		exercise.exercise_type !== 'sit_to_stand' || heightAvailable
+	);
 	const canBegin = $derived(
-		live && captureAvailable && status === 'tracking' && ready && requiredAnglesReady && !finished
+		live && captureAvailable && status === 'tracking' && ready && requiredAnglesReady &&
+		requiredHeightReady && profile.configurationError === null && !finished
 	);
 	const elapsedSeconds = $derived(Math.floor(elapsedMs / 1000));
 	const elapsed = $derived(
@@ -59,13 +73,22 @@
 					: status === 'loading'
 						? 'Loading pose detection'
 						: ready
-							? requiredAnglesReady ? 'Framing ready' : 'Joint tracking unavailable'
+							? !requiredAnglesReady
+								? 'Joint tracking unavailable'
+								: !requiredHeightReady ? 'Hip height unavailable' : 'Framing ready'
 							: !hasPose
 								? 'No pose detected'
 								: stabilizing
 									? 'Checking framing'
 									: 'Joints not visible'
 	);
+
+	function copyCounter() {
+		reps = counter.reps;
+		phase = counter.phase;
+		holdElapsedMs = counter.holdElapsedMs;
+		repCue = counter.cue;
+	}
 
 	function copyGate() {
 		ready = gate.ready;
@@ -83,6 +106,7 @@
 		kneeFiltered = null;
 		hipRaw = null;
 		hipFiltered = null;
+		heightAvailable = false;
 		lastFrameAt = 0;
 		copyGate();
 	}
@@ -98,13 +122,16 @@
 		);
 	}
 
-	function pauseExercise() {
+	function pauseExercise(reason: string | null = null) {
 		if (session !== 'running') return;
 		if (clock !== undefined) clearInterval(clock);
 		clock = undefined;
 		accumulatedMs += performance.now() - runningSince;
 		elapsedMs = accumulatedMs;
 		session = 'paused';
+		counter.suspend();
+		copyCounter();
+		if (reason !== null) repCue = reason;
 	}
 
 	function beginExercise() {
@@ -116,6 +143,9 @@
 			performance.now() - lastFrameAt > 500 ||
 			(session !== 'setup' && session !== 'paused')
 		) return;
+		if (session === 'setup') counter.reset();
+		else counter.suspend();
+		copyCounter();
 		runningSince = performance.now();
 		session = 'running';
 		clock = setInterval(() => {
@@ -126,6 +156,8 @@
 	function finishExercise() {
 		if (session !== 'running' && session !== 'paused') return;
 		pauseExercise();
+		counter.suspend();
+		copyCounter();
 		session = 'finished';
 	}
 
@@ -133,6 +165,8 @@
 		if (session !== 'setup' || side === nextSide) return;
 		generation += 1;
 		clearFraming();
+		counter.suspend();
+		copyCounter();
 		side = nextSide;
 	}
 
@@ -159,7 +193,7 @@
 			gate = new FramingGate(exerciseType, currentSide);
 			angleEstimator = new JointAngleEstimator(currentSide);
 			clearFraming();
-			pauseExercise();
+			pauseExercise('Camera tracking unavailable');
 			modelError = '';
 			status = 'loading';
 			captureAvailable = !!currentVideo && currentLive && captureRunning(currentVideo);
@@ -172,7 +206,7 @@
 				captureAvailable = captureRunning(currentVideo!);
 				if (!captureAvailable) {
 					clearFraming();
-					pauseExercise();
+					pauseExercise('Camera unavailable');
 					if (
 						currentVideo!.srcObject === null ||
 						tracks.every((track) => track.readyState === 'ended')
@@ -201,7 +235,7 @@
 					captureAvailable = live && captureRunning(currentVideo);
 					if (!captureAvailable || document.hidden) {
 						clearFraming();
-						pauseExercise();
+						pauseExercise(document.hidden ? 'Exercise not visible' : 'Camera unavailable');
 						return;
 					}
 					gate.update(landmarks, timestamp);
@@ -210,9 +244,25 @@
 					kneeFiltered = angles.knee?.filtered ?? null;
 					hipRaw = angles.hip?.raw ?? null;
 					hipFiltered = angles.hip?.filtered ?? null;
+					const sample = makeRepSample(
+						landmarks, currentSide, kneeFiltered, hipFiltered, timestamp
+					);
+					heightAvailable = sample.hipY !== null && sample.torsoHeight !== null;
 					lastFrameAt = timestamp;
 					copyGate();
-					if (!ready || !requiredAnglesReady) pauseExercise();
+					if (session === 'running') {
+						if (!ready || !requiredAnglesReady || !requiredHeightReady) {
+							pauseExercise(
+								!ready ? 'Required joints not visible'
+									: kneeFiltered === null ? 'Knee tracking unavailable'
+										: !requiredAnglesReady ? 'Hip tracking unavailable'
+											: 'Hip height unavailable'
+							);
+						} else {
+							counter.update(sample);
+							copyCounter();
+						}
+					}
 				},
 				onStatus(nextStatus, error) {
 					if (generation !== token) return;
@@ -220,7 +270,9 @@
 					modelError = error ?? '';
 					if (nextStatus !== 'tracking') {
 						clearFraming();
-						pauseExercise();
+						pauseExercise(
+							nextStatus === 'error' ? 'Pose detection unavailable' : 'Joint tracking unavailable'
+						);
 					}
 				}
 			});
@@ -255,6 +307,13 @@
 				class="pointer-events-none absolute inset-0 h-full w-full -scale-x-100 object-contain"
 			></canvas>
 		</section>
+		<RepProgress
+			{reps}
+			{phase}
+			{holdElapsedMs}
+			holdMs={exercise.hold_seconds * 1000}
+			cue={session === 'running' || session === 'paused' ? repCue : null}
+		/>
 		<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} />
 	</div>
 
@@ -290,6 +349,9 @@
 		</fieldset>
 
 		<p role="status" class="mb-5 font-semibold">{framingStatus}</p>
+		{#if profile.configurationError}
+			<p role="alert" class="mb-5 text-sm text-[var(--error)]">{profile.configurationError}</p>
+		{/if}
 
 		{#if !finished}
 			<ul aria-label="Required joint visibility" class="m-0 mb-6 list-none space-y-3 p-0">
@@ -326,7 +388,7 @@
 			<p class="mb-4 font-semibold">{session === 'running' ? 'Exercise in progress' : 'Exercise paused'}</p>
 			<div class="flex flex-col gap-3">
 				{#if session === 'running'}
-					<button onclick={pauseExercise}>Pause exercise</button>
+					<button onclick={() => pauseExercise()}>Pause exercise</button>
 				{:else}
 					<button onclick={beginExercise} disabled={!canBegin}>Resume exercise</button>
 				{/if}
