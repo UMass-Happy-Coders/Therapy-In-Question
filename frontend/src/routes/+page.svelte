@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { homeFor } from '#lib/auth.js';
+	import ClinicalLimits from '#lib/components/ClinicalLimits.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -30,6 +31,9 @@
 					<a href="/therapist" class="button button-secondary">Therapist workspace</a>
 				</nav>
 			{/if}
+			<div class="mt-6 max-w-[540px]">
+				<ClinicalLimits />
+			</div>
 		</div>
 
 		<aside aria-labelledby="movements-heading" class="rounded-lg bg-[var(--ash-grey)] p-8">
