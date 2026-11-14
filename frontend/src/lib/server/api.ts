@@ -9,6 +9,9 @@ export async function backendGet(
 		| '/api/therapist/patients'
 		| '/api/therapist/messages'
 		| '/api/patient/messages',
+		| '/api/exercises'
+		| '/api/therapist/programs'
+		| '/api/patient/programs',
 	cookies: Cookies
 ): Promise<Response> {
 	const session = cookies.get(sessionCookie);
