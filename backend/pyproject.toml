@@ -1,0 +1,29 @@
+[project]
+name = "therapy-backend"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Monster0506", email = "tjraklovits@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "asyncpg>=0.32.0",
+    "fastapi[standard]>=0.162.7",
+    "google-genai>=3.3.0",
+    "pydantic-settings>=2.16.3",
+    "pymongo>=4.20.0",
+    "sqlalchemy[asyncio]>=2.1.8",
+]
+
+[project.scripts]
+therapy-backend = "therapy_backend:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.5",
+]

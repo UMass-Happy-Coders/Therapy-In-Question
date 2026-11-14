@@ -1,0 +1,36 @@
+# Local: `docker compose up --build` -> http://localhost
+# Prod (Vultr): add docker-compose.prod.yml for HTTPS (see .env.example COMPOSE_FILE).
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    restart: unless-stopped
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.backend.rule: Host(`${DOMAIN:-localhost}`) && PathPrefix(`/api`)
+      traefik.http.routers.backend.entrypoints: web
+      traefik.http.services.backend.loadbalancer.server.port: "8000"
+
+  frontend:
+    build: ./frontend
+    environment:
+      ORIGIN: http://${DOMAIN:-localhost}
+    restart: unless-stopped
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.frontend.rule: Host(`${DOMAIN:-localhost}`)
+      traefik.http.routers.frontend.entrypoints: web
+      traefik.http.services.frontend.loadbalancer.server.port: "3000"
+
+  # Reverse proxy; routing comes from the labels above. /api (incl. WebSocket) -> backend, rest -> frontend.
+  proxy:
+    image: traefik:v3
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
