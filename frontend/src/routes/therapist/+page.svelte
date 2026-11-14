@@ -281,7 +281,6 @@
 	<header class="mb-8 flex items-end justify-between gap-8">
 		<div>
 			<h1>Programs</h1>
-			<p class="mb-0">Build a routine, then assign it to a clinic patient.</p>
 		</div>
 		<a href="#clinic-patients" class="shrink-0">Clinic patients ({data.patients.length})</a>
 	</header>
@@ -321,13 +320,12 @@
 							</select>
 							<button type="button" class="button-secondary shrink-0" onclick={addExercise} disabled={!pickedExercise || draftExercises.length >= 12}>Add exercise</button>
 						</div>
-						{#if pickedExercise}<p class="mt-2 mb-0 text-sm">{pickedExercise.description}</p>{/if}
 						{#if data.exercises.length === 0}<p class="mt-2 mb-0">No exercises are available. Please try again later.</p>{/if}
 					</div>
 
 					<h3 class="mt-6 mb-3 text-lg font-semibold">Exercise order <span class="text-sm font-normal">({draftExercises.length}/12)</span></h3>
 					{#if draftExercises.length === 0}
-						<p class="mb-0 py-4">No exercises yet. Choose an exercise above to start this routine.</p>
+						<p class="mb-0 py-4">No exercises added.</p>
 					{:else}
 						<ol class="m-0 list-none space-y-6 p-0">
 							{#each draftExercises as exercise, index (exercise.key)}
@@ -369,8 +367,7 @@
 							<option value={patient.id}>{patient.full_name} - {patient.email}</option>
 						{/each}
 					</select>
-					<p class="mt-3 mb-4 text-sm">Saved routines stay unchanged. To revise a routine, use it as a new draft.</p>
-					<button type="submit" disabled={data.exercises.length === 0}>
+					<button type="submit" class="mt-4" disabled={data.exercises.length === 0}>
 						{pending === 'save' ? 'Saving program...' : draftPatientId ? 'Save and assign' : 'Save program'}
 					</button>
 				</fieldset>
@@ -380,7 +377,7 @@
 		<section aria-labelledby="saved-heading" class="min-w-0">
 			<h2 id="saved-heading" class="mb-4">Saved programs ({programs.length})</h2>
 			{#if programs.length === 0}
-				<p>No saved programs yet. Save your first routine using the composer.</p>
+				<p>No saved programs yet.</p>
 			{:else}
 				<label for="saved-program" class="mb-1 block font-semibold">View a saved program</label>
 				<select id="saved-program" class={fieldClass} bind:value={selectedId} disabled={pending !== null} onchange={() => { assignmentPatientId = ''; revokePatientId = ''; }}>
@@ -448,14 +445,14 @@
 									<button type="submit" class="mt-3" disabled={pending !== null || !assignmentPatientId}>{pending === 'assign' ? 'Assigning...' : 'Assign program'}</button>
 								</form>
 							{:else if data.patients.length > 0}
-								<p class="mt-4 mb-0 text-sm">This routine is assigned to every clinic patient.</p>
+								<p class="mt-4 mb-0 text-sm">All clinic patients assigned.</p>
 							{:else}
 								<p class="mt-4 mb-0 text-sm">No clinic patients are available for assignment.</p>
 							{/if}
 						</section>
 					</article>
 				{:else}
-					<p class="mt-4">Choose a saved program to review its routine and patient assignments.</p>
+					<p class="mt-4">No program selected.</p>
 				{/if}
 			{/if}
 		</section>
@@ -464,7 +461,7 @@
 	<section id="clinic-patients" aria-labelledby="patients-heading" class="mt-12 scroll-mt-6">
 		<h2 id="patients-heading" class="mb-4">Clinic patients ({data.patients.length})</h2>
 		{#if data.patients.length === 0}
-			<p>No patients are registered at this clinic yet. You can still save programs for later.</p>
+			<p>No clinic patients.</p>
 		{:else}
 			<table class="w-full table-fixed border-collapse text-left">
 				<caption class="sr-only">Patient roster and assigned programs</caption>

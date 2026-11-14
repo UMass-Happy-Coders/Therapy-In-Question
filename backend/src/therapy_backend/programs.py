@@ -10,7 +10,7 @@ from sqlalchemy.orm import aliased
 
 from .auth import CurrentTherapist, CurrentUser, UserResponse, require_csrf_header
 from .db import DB
-from .exercises import EXERCISES, EXERCISE_BY_ID, ExerciseDefinition, ExerciseType
+from .exercises import EXERCISE_BY_ID, EXERCISES, ExerciseDefinition, ExerciseType
 from .models import Program, ProgramAssignment, ProgramExercise, User
 
 router = APIRouter()
