@@ -10,12 +10,14 @@ from .models import ExerciseSession
 from .programs import CurrentPatient, ProgramDetailResponse, require_patient
 from .recording_schemas import (
     RecordingChunkRequest,
+    RecordingIndexPage,
     RecordingPage,
     RecordingReceipt,
     RecordingSummary,
 )
 from .recording_storage import (
     recording_chunks,
+    recording_index,
     recording_summary,
     store_recording_chunk,
 )
@@ -98,3 +100,20 @@ async def get_recording_chunks(
     await require_recording_session(db, user, session_id)
     await db.rollback()
     return await recording_chunks(mongo, session_id, after_seq, limit)
+
+
+@router.get(
+    "/patient/sessions/{session_id}/recording/index",
+    response_model=RecordingIndexPage,
+)
+async def get_recording_index(
+    session_id: UUID,
+    user: CurrentPatient,
+    db: DB,
+    mongo: Mongo,
+    after_seq: Annotated[int, Query(ge=-1)] = -1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+) -> RecordingIndexPage:
+    await require_recording_session(db, user, session_id)
+    await db.rollback()
+    return await recording_index(mongo, session_id, after_seq, limit)
