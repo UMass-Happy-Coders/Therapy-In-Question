@@ -3,6 +3,7 @@
 	import Webcam from '#lib/components/Webcam.svelte';
 	import JointAngles from '#lib/components/JointAngles.svelte';
 	import RepProgress from '#lib/components/RepProgress.svelte';
+	import HandRaiseControls from '#lib/components/HandRaiseControls.svelte';
 	import { JointAngleEstimator } from '#lib/pose/angles.js';
 	import { FramingGate, type RequiredJoint, type TrackedSide } from '#lib/pose/framing.js';
 	import { HandRaiseGesture, type HandRaiseState } from '#lib/pose/hand-raise.js';
@@ -104,13 +105,17 @@
 		stabilizing = gate.stabilizing;
 		joints = gate.joints;
 	}
+
 	function resetHandRaise() {
 		handRaise.reset();
 		handRaiseState = handRaise.state;
 		handRaiseProgressMs = 0;
 		handRaiseAction = null;
 	}
-
+	function setHandsFreeEnabled(enabled: boolean) {
+		handsFreeEnabled = enabled;
+		resetHandRaise();
+	}
 
 	function clearFraming() {
 		resetHandRaise();
@@ -424,5 +429,16 @@
 				<button class="button-secondary" onclick={finishExercise}>Finish exercise</button>
 			</div>
 		{/if}
+
+		<HandRaiseControls
+			enabled={handsFreeEnabled}
+			disabled={finished}
+			available={captureAvailable && status === 'tracking'}
+			active={session === 'running' || session === 'paused'}
+			state={handRaiseState}
+			progressMs={handRaiseProgressMs}
+			action={handRaiseAction}
+			onchange={setHandsFreeEnabled}
+		/>
 	</section>
 </div>
