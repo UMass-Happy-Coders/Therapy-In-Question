@@ -8,7 +8,7 @@ export async function backendGet(
 		| '/api/auth/me'
 		| '/api/therapist/patients'
 		| '/api/therapist/messages'
-		| '/api/patient/messages',
+		| '/api/patient/messages'
 		| '/api/exercises'
 		| '/api/therapist/programs'
 		| '/api/patient/programs',
