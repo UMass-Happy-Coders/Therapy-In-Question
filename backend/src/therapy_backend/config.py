@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     mongodb_uri: str
     mongodb_db: str = "therapy"
     gemini_api_key: str
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
     jwt_secret: str
 
     @field_validator("database_url")
