@@ -3,8 +3,10 @@
 	import Webcam from '#lib/components/Webcam.svelte';
 	import JointAngles from '#lib/components/JointAngles.svelte';
 	import RepProgress from '#lib/components/RepProgress.svelte';
+	import HandRaiseControls from '#lib/components/HandRaiseControls.svelte';
 	import { JointAngleEstimator } from '#lib/pose/angles.js';
 	import { FramingGate, type RequiredJoint, type TrackedSide } from '#lib/pose/framing.js';
+	import { HandRaiseGesture, type HandRaiseState } from '#lib/pose/hand-raise.js';
 	import { RepCounter, makeRepSample } from '#lib/pose/rep-counter.js';
 	import { createRepProfile, type RepPhase } from '#lib/pose/rep-profile.js';
 	import { startPoseTracking, type TrackerStatus } from '#lib/pose/tracker.js';
@@ -13,6 +15,7 @@
 	let { exercise }: { exercise: ProgramExercise } = $props();
 	const profile = untrack(() => createRepProfile(exercise));
 	const counter = untrack(() => new RepCounter(profile));
+	const handRaise = new HandRaiseGesture();
 
 	let video = $state<HTMLVideoElement>();
 	let canvas = $state<HTMLCanvasElement>();
@@ -38,6 +41,10 @@
 	let phase = $state<RepPhase>('rest');
 	let holdElapsedMs = $state(0);
 	let repCue = $state<string | null>(null);
+	let handsFreeEnabled = $state(false);
+	let handRaiseState = $state<HandRaiseState>('waiting');
+	let handRaiseProgressMs = $state(0);
+	let handRaiseAction = $state<'paused' | 'resumed' | 'blocked' | null>(null);
 	let elapsedMs = $state(0);
 	let gate: FramingGate;
 	let angleEstimator: JointAngleEstimator;
@@ -99,7 +106,19 @@
 		joints = gate.joints;
 	}
 
+	function resetHandRaise() {
+		handRaise.reset();
+		handRaiseState = handRaise.state;
+		handRaiseProgressMs = 0;
+		handRaiseAction = null;
+	}
+	function setHandsFreeEnabled(enabled: boolean) {
+		handsFreeEnabled = enabled;
+		resetHandRaise();
+	}
+
 	function clearFraming() {
+		resetHandRaise();
 		gate.reset();
 		angleEstimator.reset();
 		kneeRaw = null;
@@ -122,8 +141,9 @@
 		);
 	}
 
-	function pauseExercise(reason: string | null = null) {
+	function pauseExercise(reason: string | null = null, fromGesture = false) {
 		if (session !== 'running') return;
+		if (!fromGesture) resetHandRaise();
 		if (clock !== undefined) clearInterval(clock);
 		clock = undefined;
 		accumulatedMs += performance.now() - runningSince;
@@ -134,7 +154,7 @@
 		if (reason !== null) repCue = reason;
 	}
 
-	function beginExercise() {
+	function beginExercise(fromGesture = false): boolean {
 		if (
 			!canBegin ||
 			!video ||
@@ -142,7 +162,8 @@
 			document.hidden ||
 			performance.now() - lastFrameAt > 500 ||
 			(session !== 'setup' && session !== 'paused')
-		) return;
+		) return false;
+		if (!fromGesture) resetHandRaise();
 		if (session === 'setup') counter.reset();
 		else counter.suspend();
 		copyCounter();
@@ -151,6 +172,7 @@
 		clock = setInterval(() => {
 			elapsedMs = accumulatedMs + performance.now() - runningSince;
 		}, 200);
+		return true;
 	}
 
 	function finishExercise() {
@@ -262,6 +284,18 @@
 							counter.update(sample);
 							copyCounter();
 						}
+					}
+					if (handsFreeEnabled && (session === 'running' || session === 'paused')) {
+						if (handRaise.update(landmarks, timestamp)) {
+							if (session === 'running') {
+								pauseExercise(null, true);
+								handRaiseAction = 'paused';
+							} else {
+								handRaiseAction = beginExercise(true) ? 'resumed' : 'blocked';
+							}
+						}
+						handRaiseState = handRaise.state;
+						handRaiseProgressMs = handRaise.progressMs;
 					}
 				},
 				onStatus(nextStatus, error) {
@@ -383,17 +417,28 @@
 		{/if}
 
 		{#if session === 'setup'}
-			<button class="w-full" onclick={beginExercise} disabled={!canBegin}>Start exercise</button>
+			<button class="w-full" onclick={() => beginExercise()} disabled={!canBegin}>Start exercise</button>
 		{:else if session !== 'finished'}
 			<p class="mb-4 font-semibold">{session === 'running' ? 'Exercise in progress' : 'Exercise paused'}</p>
 			<div class="flex flex-col gap-3">
 				{#if session === 'running'}
 					<button onclick={() => pauseExercise()}>Pause exercise</button>
 				{:else}
-					<button onclick={beginExercise} disabled={!canBegin}>Resume exercise</button>
+					<button onclick={() => beginExercise()} disabled={!canBegin}>Resume exercise</button>
 				{/if}
 				<button class="button-secondary" onclick={finishExercise}>Finish exercise</button>
 			</div>
 		{/if}
+
+		<HandRaiseControls
+			enabled={handsFreeEnabled}
+			disabled={finished}
+			available={captureAvailable && status === 'tracking'}
+			active={session === 'running' || session === 'paused'}
+			state={handRaiseState}
+			progressMs={handRaiseProgressMs}
+			action={handRaiseAction}
+			onchange={setHandsFreeEnabled}
+		/>
 	</section>
 </div>
