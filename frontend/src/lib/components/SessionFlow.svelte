@@ -1,6 +1,9 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
 	import PoseSetup from '#lib/components/PoseSetup.svelte';
+	import MovementRecording from '#lib/components/MovementRecording.svelte';
+	import { MovementRecorder, type RecordingState } from '#lib/pose/recording.js';
 	import { isPatientSession, sessionSteps, type PatientSession, type SetMeasurement } from '#lib/sessions.js';
 
 	let { initial }: { initial: PatientSession } = $props();
@@ -13,6 +16,31 @@
 	let pending = $state(false);
 	let errorMessage = $state('');
 	let saveStatus = $state<number | null>(null);
+	let recording = $state<RecordingState>({ totals: null, pendingFrames: 0, busy: false, ready: false, error: '' });
+	const recorder = untrack(() => new MovementRecorder(initial.id, (state) => recording = state));
+
+	beforeNavigate(({ cancel }) => {
+		if (recording.pendingFrames > 0 && !window.confirm('Leave without saving the pending movement data?')) cancel();
+	});
+
+	onMount(() => {
+		void recorder.connect();
+		const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+			if (recording.pendingFrames > 0) {
+				event.preventDefault();
+				event.returnValue = '';
+			}
+		};
+		window.addEventListener('beforeunload', warnBeforeLeaving);
+		return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+	});
+
+	onDestroy(() => recorder.dispose());
+
+	async function retryRecording() {
+		if (await recorder.retry()) errorMessage = '';
+	}
+
 	const scores = Array.from({ length: 11 }, (_, index) => index);
 	const plan = $derived(sessionSteps(session.program));
 	const step = $derived(plan[session.sets.length]!);
@@ -32,6 +60,10 @@
 		errorMessage = '';
 		saveStatus = null;
 		try {
+			if (!await recorder.flush()) {
+				errorMessage = 'Set was not saved. Retry recording before saving this set.';
+				return;
+			}
 			const response = await fetch(`/api/patient/sessions/${session.id}/sets`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'TherapyInQuestion' },
@@ -79,6 +111,7 @@
 			<div><dt>Reps recorded</dt><dd class="m-0 text-3xl font-semibold">{recordedReps} / {plannedReps}</dd></div>
 			<div><dt>Active time</dt><dd class="m-0 text-3xl font-semibold tabular-nums">{activeTime(activeSeconds)}</dd></div>
 		</dl>
+		<MovementRecording state={recording} onretry={retryRecording} />
 		<table class="w-full border-collapse text-left">
 			<caption class="mb-5 text-left text-xl font-semibold">Saved set logs</caption>
 			<thead class="bg-[var(--ash-grey)]">
@@ -111,6 +144,7 @@
 			<div><dt>{step.exercise.target_label}</dt><dd class="m-0 text-lg font-semibold">{step.exercise.target_angle} degrees</dd></div>
 			<div><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} seconds` : 'No hold'}</dd></div>
 		</dl>
+		<MovementRecording state={recording} onretry={retryRecording} />
 		{#if measurement}
 			<section aria-labelledby="set-log-heading" class="max-w-4xl rounded-lg bg-[var(--surface)] p-8">
 				<h2 id="set-log-heading">Log set {step.set_number}</h2>
@@ -155,7 +189,13 @@
 			</section>
 		{:else}
 			{#key session.sets.length}
-				<PoseSetup exercise={step.exercise} finishLabel="End set" onfinish={(result) => measurement = result} />
+				<PoseSetup
+					exercise={step.exercise}
+					finishLabel="End set"
+					recordingReady={recording.ready}
+					onrecord={(frame) => recorder.capture({ ...frame, setOrdinal: session.sets.length, exerciseId: step.exercise.id })}
+					onfinish={(result) => { measurement = result; void recorder.flush(); }}
+				/>
 			{/key}
 		{/if}
 	{/if}
