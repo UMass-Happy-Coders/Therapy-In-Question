@@ -10,13 +10,16 @@
 	import { RepCounter, makeRepSample } from '#lib/pose/rep-counter.js';
 	import { createRepProfile, type RepPhase } from '#lib/pose/rep-profile.js';
 	import { startPoseTracking, type TrackerStatus } from '#lib/pose/tracker.js';
+	import type { PoseCapture } from '#lib/pose/recording.js';
 	import type { ProgramExercise } from '#lib/programs.js';
 	import type { SetMeasurement } from '#lib/sessions.js';
 
-	let { exercise, onfinish, finishLabel = 'Finish exercise' }: {
+	let { exercise, onfinish, finishLabel = 'Finish exercise', onrecord, recordingReady = true }: {
 		exercise: ProgramExercise;
 		onfinish?: (result: SetMeasurement) => void;
 		finishLabel?: string;
+		onrecord?: (frame: Omit<PoseCapture, 'setOrdinal' | 'exerciseId'>) => boolean;
+		recordingReady?: boolean;
 	} = $props();
 	const profile = untrack(() => createRepProfile(exercise));
 	const counter = untrack(() => new RepCounter(profile));
@@ -58,6 +61,7 @@
 	let accumulatedMs = 0;
 	let runningSince = 0;
 	let clock: ReturnType<typeof setInterval> | undefined;
+	let runId = '';
 
 	const finished = $derived(session === 'finished');
 	const requiredAnglesReady = $derived(
@@ -69,7 +73,7 @@
 	);
 	const canBegin = $derived(
 		live && captureAvailable && status === 'tracking' && ready && requiredAnglesReady &&
-		requiredHeightReady && profile.configurationError === null && !finished
+		requiredHeightReady && profile.configurationError === null && !finished && recordingReady
 	);
 	const elapsedSeconds = $derived(Math.floor(elapsedMs / 1000));
 	const elapsed = $derived(
@@ -169,6 +173,7 @@
 			(session !== 'setup' && session !== 'paused')
 		) return false;
 		if (!fromGesture) resetHandRaise();
+		if (!runId) runId = crypto.randomUUID();
 		if (session === 'setup') counter.reset();
 		else counter.suspend();
 		copyCounter();
@@ -279,9 +284,10 @@
 					lastFrameAt = timestamp;
 					copyGate();
 					if (session === 'running') {
-						if (!ready || !requiredAnglesReady || !requiredHeightReady) {
+						if (!recordingReady || !ready || !requiredAnglesReady || !requiredHeightReady) {
 							pauseExercise(
-								!ready ? 'Required joints not visible'
+								!recordingReady ? 'Movement recording unavailable'
+									: !ready ? 'Required joints not visible'
 									: kneeFiltered === null ? 'Knee tracking unavailable'
 										: !requiredAnglesReady ? 'Hip tracking unavailable'
 											: 'Hip height unavailable'
@@ -289,6 +295,11 @@
 						} else {
 							counter.update(sample);
 							copyCounter();
+							if (onrecord && landmarks && worldLandmarks && !onrecord({
+								landmarks, worldLandmarks, timestamp,
+								elapsedMs: accumulatedMs + timestamp - runningSince,
+								phase, reps, cue: repCue, side: currentSide, runId
+							})) pauseExercise('Movement recording buffer full');
 						}
 					}
 					if (handsFreeEnabled && (session === 'running' || session === 'paused')) {
