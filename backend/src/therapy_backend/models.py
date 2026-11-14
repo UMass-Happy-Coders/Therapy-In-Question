@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -13,6 +14,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -101,3 +103,72 @@ class ProgramAssignment(Base):
     patient_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     assigned_by: Mapped[UUID] = mapped_column(ForeignKey("users.id"))
     assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ExerciseSession(Base):
+    __tablename__ = "exercise_sessions"
+    __table_args__ = (
+        UniqueConstraint(
+            "patient_id",
+            "assignment_id",
+            "session_date",
+            name="exercise_sessions_patient_assignment_date_key",
+        ),
+        CheckConstraint(
+            "status IN ('in_progress', 'completed')",
+            name="exercise_sessions_status_check",
+        ),
+        CheckConstraint(
+            "(status = 'in_progress' AND completed_at IS NULL) OR "
+            "(status = 'completed' AND completed_at IS NOT NULL)",
+            name="exercise_sessions_completion_check",
+        ),
+        Index("exercise_sessions_patient_date_idx", "patient_id", "session_date"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    patient_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    clinic_id: Mapped[UUID] = mapped_column(ForeignKey("clinics.id", ondelete="CASCADE"))
+    assignment_id: Mapped[UUID] = mapped_column()
+    session_date: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(20), server_default="in_progress")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    program_snapshot: Mapped[dict[str, object]] = mapped_column(JSONB)
+
+
+class ExerciseSessionSet(Base):
+    __tablename__ = "exercise_session_sets"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            "exercise_id",
+            "set_number",
+            name="exercise_session_sets_exercise_number_key",
+        ),
+        CheckConstraint("ordinal BETWEEN 0 AND 119", name="exercise_session_sets_ordinal_check"),
+        CheckConstraint("set_number BETWEEN 1 AND 10", name="exercise_session_sets_number_check"),
+        CheckConstraint("reps_completed BETWEEN 0 AND 1000", name="exercise_session_sets_reps_check"),
+        CheckConstraint(
+            "elapsed_seconds BETWEEN 0 AND 86400",
+            name="exercise_session_sets_elapsed_check",
+        ),
+        CheckConstraint("pain BETWEEN 0 AND 10", name="exercise_session_sets_pain_check"),
+        CheckConstraint("difficulty BETWEEN 0 AND 10", name="exercise_session_sets_difficulty_check"),
+        CheckConstraint("comfort BETWEEN 0 AND 10", name="exercise_session_sets_comfort_check"),
+        CheckConstraint("char_length(notes) <= 1000", name="exercise_session_sets_notes_check"),
+    )
+
+    session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("exercise_sessions.id", ondelete="CASCADE"), primary_key=True
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exercise_id: Mapped[UUID] = mapped_column()
+    set_number: Mapped[int] = mapped_column(Integer)
+    reps_completed: Mapped[int] = mapped_column(Integer)
+    elapsed_seconds: Mapped[float] = mapped_column(Float)
+    pain: Mapped[int] = mapped_column(Integer)
+    difficulty: Mapped[int] = mapped_column(Integer)
+    comfort: Mapped[int] = mapped_column(Integer)
+    notes: Mapped[str] = mapped_column(Text, server_default="")
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
