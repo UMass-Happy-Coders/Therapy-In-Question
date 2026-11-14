@@ -11,8 +11,13 @@
 	import { createRepProfile, type RepPhase } from '#lib/pose/rep-profile.js';
 	import { startPoseTracking, type TrackerStatus } from '#lib/pose/tracker.js';
 	import type { ProgramExercise } from '#lib/programs.js';
+	import type { SetMeasurement } from '#lib/sessions.js';
 
-	let { exercise }: { exercise: ProgramExercise } = $props();
+	let { exercise, onfinish, finishLabel = 'Finish exercise' }: {
+		exercise: ProgramExercise;
+		onfinish?: (result: SetMeasurement) => void;
+		finishLabel?: string;
+	} = $props();
 	const profile = untrack(() => createRepProfile(exercise));
 	const counter = untrack(() => new RepCounter(profile));
 	const handRaise = new HandRaiseGesture();
@@ -181,6 +186,7 @@
 		counter.suspend();
 		copyCounter();
 		session = 'finished';
+		onfinish?.({ reps_completed: reps, elapsed_seconds: Math.round(elapsedMs) / 1000 });
 	}
 
 	function selectSide(nextSide: TrackedSide) {
@@ -426,7 +432,7 @@
 				{:else}
 					<button onclick={() => beginExercise()} disabled={!canBegin}>Resume exercise</button>
 				{/if}
-				<button class="button-secondary" onclick={finishExercise}>Finish exercise</button>
+				<button class="button-secondary" onclick={finishExercise}>{finishLabel}</button>
 			</div>
 		{/if}
 
