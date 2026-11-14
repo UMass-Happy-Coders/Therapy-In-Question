@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
 	import Webcam from '#lib/components/Webcam.svelte';
+	import JointAngles from '#lib/components/JointAngles.svelte';
+	import { JointAngleEstimator } from '#lib/pose/angles.js';
 	import { FramingGate, type RequiredJoint, type TrackedSide } from '#lib/pose/framing.js';
 	import { startPoseTracking, type TrackerStatus } from '#lib/pose/tracker.js';
 	import type { ProgramExercise } from '#lib/programs.js';
@@ -22,8 +24,13 @@
 	let requiredMask = $state(0);
 	let stabilizing = $state(false);
 	let joints = $state<readonly RequiredJoint[]>([]);
+	let kneeRaw = $state<number | null>(null);
+	let kneeFiltered = $state<number | null>(null);
+	let hipRaw = $state<number | null>(null);
+	let hipFiltered = $state<number | null>(null);
 	let elapsedMs = $state(0);
 	let gate: FramingGate;
+	let angleEstimator: JointAngleEstimator;
 	let generation = 0;
 	let lastFrameAt = 0;
 	let accumulatedMs = 0;
@@ -31,7 +38,13 @@
 	let clock: ReturnType<typeof setInterval> | undefined;
 
 	const finished = $derived(session === 'finished');
-	const canBegin = $derived(live && captureAvailable && status === 'tracking' && ready && !finished);
+	const requiredAnglesReady = $derived(
+		kneeFiltered !== null &&
+		(exercise.exercise_type === 'seated_knee_extension' || hipFiltered !== null)
+	);
+	const canBegin = $derived(
+		live && captureAvailable && status === 'tracking' && ready && requiredAnglesReady && !finished
+	);
 	const elapsedSeconds = $derived(Math.floor(elapsedMs / 1000));
 	const elapsed = $derived(
 		`${Math.floor(elapsedSeconds / 60).toString().padStart(2, '0')}:${(elapsedSeconds % 60).toString().padStart(2, '0')}`
@@ -46,7 +59,7 @@
 					: status === 'loading'
 						? 'Loading pose detection'
 						: ready
-							? 'Framing ready'
+							? requiredAnglesReady ? 'Framing ready' : 'Joint tracking unavailable'
 							: !hasPose
 								? 'No pose detected'
 								: stabilizing
@@ -65,6 +78,11 @@
 
 	function clearFraming() {
 		gate.reset();
+		angleEstimator.reset();
+		kneeRaw = null;
+		kneeFiltered = null;
+		hipRaw = null;
+		hipFiltered = null;
 		lastFrameAt = 0;
 		copyGate();
 	}
@@ -139,6 +157,7 @@
 		return untrack(() => {
 			const token = ++generation;
 			gate = new FramingGate(exerciseType, currentSide);
+			angleEstimator = new JointAngleEstimator(currentSide);
 			clearFraming();
 			pauseExercise();
 			modelError = '';
@@ -177,7 +196,7 @@
 			const stop = startPoseTracking({
 				video: currentVideo,
 				canvas: currentCanvas,
-				onFrame(landmarks, timestamp) {
+				onFrame(landmarks, worldLandmarks, timestamp) {
 					if (generation !== token) return;
 					captureAvailable = live && captureRunning(currentVideo);
 					if (!captureAvailable || document.hidden) {
@@ -186,9 +205,14 @@
 						return;
 					}
 					gate.update(landmarks, timestamp);
+					const angles = angleEstimator.update(landmarks, worldLandmarks, timestamp);
+					kneeRaw = angles.knee?.raw ?? null;
+					kneeFiltered = angles.knee?.filtered ?? null;
+					hipRaw = angles.hip?.raw ?? null;
+					hipFiltered = angles.hip?.filtered ?? null;
 					lastFrameAt = timestamp;
 					copyGate();
-					if (!ready) pauseExercise();
+					if (!ready || !requiredAnglesReady) pauseExercise();
 				},
 				onStatus(nextStatus, error) {
 					if (generation !== token) return;
@@ -222,14 +246,17 @@
 </script>
 
 <div class="grid grid-cols-[minmax(0,1fr)_19rem] items-start gap-8">
-	<section aria-label="Exercise camera" class="relative w-full max-w-[960px]">
-		<Webcam bind:video bind:live />
-		<canvas
-			bind:this={canvas}
-			aria-hidden="true"
-			class="pointer-events-none absolute inset-0 h-full w-full -scale-x-100 object-contain"
-		></canvas>
-	</section>
+	<div class="w-full max-w-[960px]">
+		<section aria-label="Exercise camera" class="relative">
+			<Webcam bind:video bind:live />
+			<canvas
+				bind:this={canvas}
+				aria-hidden="true"
+				class="pointer-events-none absolute inset-0 h-full w-full -scale-x-100 object-contain"
+			></canvas>
+		</section>
+		<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} />
+	</div>
 
 	<section aria-labelledby="framing-heading" class="rounded-lg bg-[var(--surface)] p-6">
 		<h2 id="framing-heading" class="mb-6">Framing check</h2>

@@ -58,7 +58,7 @@
 									</dl>
 									<a
 										href={`/patient/exercise/${assignment.id}/${exercise.id}`}
-										class="mt-3 inline-block font-semibold"
+										class="button mt-4"
 										aria-label={`Set up camera for ${exercise.name}`}
 									>Set up camera</a>
 								</li>
