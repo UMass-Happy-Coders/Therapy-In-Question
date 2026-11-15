@@ -4,6 +4,7 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from itertools import pairwise
 from math import isfinite
 from typing import Annotated, Any
 from uuid import UUID
@@ -303,7 +304,7 @@ async def recording_index(
                         len(current.world_landmarks) != len(previous.world_landmarks)
                         or current.elapsed_ms < previous.elapsed_ms
                         or current.rep_number < previous.rep_number
-                        for previous, current in zip(frames, frames[1:])
+                        for previous, current in pairwise(frames)
                     ):
                         raise ValueError("Stored recording frames are not ordered.")
                 except (ValueError, KeyError, TypeError) as exc:
