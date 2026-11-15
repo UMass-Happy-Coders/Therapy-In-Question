@@ -3,7 +3,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 ExerciseType = Literal[
-    "seated_knee_extension", "straight_leg_raise", "sit_to_stand", "seated_ankle_pumps"
+    "seated_knee_extension", "straight_leg_raise", "sit_to_stand", "seated_ankle_pumps",
+    "seated_index_finger_bends",
 ]
 
 
@@ -56,6 +57,19 @@ EXERCISES = (
         target_min=15,
         target_max=60,
         target_default=25,
+    ),
+    ExerciseDefinition(
+        id="seated_index_finger_bends",
+        name="Seated index finger bends",
+        description=(
+            "Seated with your forearm supported, gently bend and straighten your "
+            "index finger. Keep this demo pain-free. For rehabilitation, only use "
+            "if assigned by your therapist."
+        ),
+        target_label="Index finger bend",
+        target_min=30,
+        target_max=110,
+        target_default=60,
     ),
 )
 EXERCISE_BY_ID = {exercise.id: exercise for exercise in EXERCISES}

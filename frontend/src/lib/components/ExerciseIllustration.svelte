@@ -3,7 +3,7 @@
 	import type { TutorialStep } from '#lib/pose/exercise-tutorial.js';
 
 	let { exerciseType, pose, targetAngle }: {
-		exerciseType: ExerciseType;
+		exerciseType: Exclude<ExerciseType, 'seated_index_finger_bends'>;
 		pose: TutorialStep['pose'];
 		targetAngle: number;
 	} = $props();

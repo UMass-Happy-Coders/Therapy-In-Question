@@ -1,4 +1,4 @@
-export type ExerciseType = 'seated_knee_extension' | 'straight_leg_raise' | 'sit_to_stand' | 'seated_ankle_pumps';
+export type ExerciseType = 'seated_knee_extension' | 'straight_leg_raise' | 'sit_to_stand' | 'seated_ankle_pumps' | 'seated_index_finger_bends';
 
 export interface ExerciseDefinition {
 	id: ExerciseType;
@@ -52,7 +52,7 @@ function hasStrings(...values: unknown[]): boolean {
 }
 
 function isExerciseType(value: unknown): value is ExerciseType {
-	return value === 'seated_knee_extension' || value === 'straight_leg_raise' || value === 'sit_to_stand' || value === 'seated_ankle_pumps';
+	return value === 'seated_knee_extension' || value === 'straight_leg_raise' || value === 'sit_to_stand' || value === 'seated_ankle_pumps' || value === 'seated_index_finger_bends';
 }
 
 export function isExerciseDefinition(value: unknown): value is ExerciseDefinition {

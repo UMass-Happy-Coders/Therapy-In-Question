@@ -13,7 +13,8 @@
 	let { frame, bounds, frameNumber }: Props = $props();
 	let canvas: HTMLCanvasElement;
 	let context = $state.raw<CanvasRenderingContext2D | null>(null);
-	let connections = $state.raw<Readonly<typeof PoseLandmarker.POSE_CONNECTIONS>>([]);
+	let poseConnections = $state.raw<Readonly<typeof PoseLandmarker.POSE_CONNECTIONS>>([]);
+	let handConnections = $state.raw<Readonly<typeof PoseLandmarker.POSE_CONNECTIONS>>([]);
 	let error = $state('');
 	let lineColor = '';
 	let pointColor = '';
@@ -30,7 +31,10 @@
 		}
 		void import('@mediapipe/tasks-vision').then(
 			(vision) => {
-				if (!destroyed) connections = vision.PoseLandmarker.POSE_CONNECTIONS;
+				if (!destroyed) {
+					poseConnections = vision.PoseLandmarker.POSE_CONNECTIONS;
+					handConnections = vision.HandLandmarker.HAND_CONNECTIONS;
+				}
 			},
 			(reason: unknown) => {
 				if (!destroyed) {
@@ -43,16 +47,17 @@
 		};
 	});
 
-	function visible(point: RecordedPoint | undefined): point is RecordedPoint {
+	function visible(point: RecordedPoint | undefined, hand: boolean): point is RecordedPoint {
 		return point !== undefined && Number.isFinite(point.x) && Number.isFinite(point.y) &&
-			point.visibility >= 0.35 && (point.presence === undefined || point.presence >= 0.35);
+			(hand || point.visibility >= 0.35 && (point.presence === undefined || point.presence >= 0.35));
 	}
 
 	$effect(() => {
 		const ctx = context;
 		const currentFrame = frame;
 		const fixedBounds = bounds;
-		const edges = connections;
+		const hand = currentFrame?.world_landmarks.length === 21;
+		const edges = hand ? handConnections : poseConnections;
 		if (!ctx) return;
 		ctx.clearRect(0, 0, 960, 640);
 		if (!currentFrame || !fixedBounds || edges.length === 0) return;
@@ -73,7 +78,7 @@
 		for (const edge of edges) {
 			const start = points[edge.start];
 			const end = points[edge.end];
-			if (!visible(start) || !visible(end)) continue;
+			if (!visible(start, hand) || !visible(end, hand)) continue;
 			ctx.moveTo(480 - (start.x - centerX) * scale, 320 + (start.y - centerY) * scale);
 			ctx.lineTo(480 - (end.x - centerX) * scale, 320 + (end.y - centerY) * scale);
 		}
@@ -81,7 +86,7 @@
 		ctx.fillStyle = pointColor;
 		ctx.lineWidth = 2;
 		for (const point of points) {
-			if (!visible(point)) continue;
+			if (!visible(point, hand)) continue;
 			ctx.beginPath();
 			ctx.arc(480 - (point.x - centerX) * scale, 320 + (point.y - centerY) * scale, 4, 0, Math.PI * 2);
 			ctx.fill();

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import ExerciseIllustration from '#lib/components/ExerciseIllustration.svelte';
+	import HandIllustration from '#lib/components/HandIllustration.svelte';
 	import { exerciseWalkthrough } from '#lib/pose/exercise-tutorial.js';
 	import type { ProgramExercise } from '#lib/programs.js';
 
@@ -26,7 +27,11 @@
 		{#each walkthrough.steps as step, index (step.pose)}
 			<li>
 				<div class="mb-4 flex justify-center rounded-lg bg-[var(--surface)] py-2">
-					<ExerciseIllustration exerciseType={exercise.exercise_type} pose={step.pose} targetAngle={exercise.target_angle} />
+					{#if exercise.exercise_type === 'seated_index_finger_bends'}
+						<HandIllustration pose={step.pose} targetAngle={exercise.target_angle} />
+					{:else}
+						<ExerciseIllustration exerciseType={exercise.exercise_type} pose={step.pose} targetAngle={exercise.target_angle} />
+					{/if}
 				</div>
 				<h3 class="mb-2 flex items-center gap-3 text-lg font-semibold">
 					<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--ash-grey)] text-sm">{index + 1}</span>

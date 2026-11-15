@@ -66,6 +66,14 @@ async def post_recording_chunk(
         or prescribed_exercise.id != body.exercise_id
     ):
         raise HTTPException(status_code=409, detail="Chunk does not match the prescription.")
+    expected_landmarks = (
+        21 if prescribed_exercise.exercise_type == "seated_index_finger_bends" else 33
+    )
+    if len(body.frames[0].landmarks) != expected_landmarks:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Prescribed exercise requires {expected_landmarks} landmarks per frame.",
+        )
     await db.rollback()
     return await store_recording_chunk(
         mongo, session_id, user.id, user.clinic_id, body

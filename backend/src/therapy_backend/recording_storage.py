@@ -4,12 +4,13 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from itertools import pairwise
 from math import isfinite
 from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from pydantic import Field, TypeAdapter
+from pydantic import Field, TypeAdapter, field_validator
 from pymongo import ASCENDING, IndexModel, ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError, PyMongoError
@@ -54,6 +55,7 @@ _INDEX_PROJECTION = {
     "frames.rep_boundary": 1,
     "frames.world_landmarks.x": 1,
     "frames.world_landmarks.y": 1,
+    "frames.world_landmarks.z": 1,
     "frames.world_landmarks.visibility": 1,
     "frames.world_landmarks.presence": 1,
 }
@@ -62,6 +64,7 @@ _INDEX_PROJECTION = {
 class _IndexPoint(RecordingModel):
     x: Annotated[float, Field(strict=True)]
     y: Annotated[float, Field(strict=True)]
+    z: Annotated[float, Field(strict=True)]
     visibility: Annotated[float, Field(strict=True)]
     presence: Annotated[float, Field(strict=True)] | None = None
 
@@ -73,8 +76,15 @@ class _IndexFrame(RecordingModel):
     rep_number: Annotated[int, Field(strict=True, ge=0, le=100)]
     rep_boundary: Annotated[bool, Field(strict=True)]
     world_landmarks: Annotated[
-        list[_IndexPoint], Field(strict=True, min_length=33, max_length=33)
+        list[_IndexPoint], Field(strict=True, min_length=21, max_length=33)
     ]
+
+    @field_validator("world_landmarks")
+    @classmethod
+    def require_landmark_count(cls, value: list[_IndexPoint]) -> list[_IndexPoint]:
+        if len(value) not in (21, 33):
+            raise ValueError("world_landmarks must contain exactly 21 or 33 points")
+        return value
 
 
 _INDEX_FRAMES = TypeAdapter(
@@ -291,9 +301,10 @@ async def recording_index(
                     if chunk.frame_count != len(frames):
                         raise ValueError("Stored recording frame count is inconsistent.")
                     if any(
-                        current.elapsed_ms < previous.elapsed_ms
+                        len(current.world_landmarks) != len(previous.world_landmarks)
+                        or current.elapsed_ms < previous.elapsed_ms
                         or current.rep_number < previous.rep_number
-                        for previous, current in zip(frames, frames[1:])
+                        for previous, current in pairwise(frames)
                     ):
                         raise ValueError("Stored recording frames are not ordered.")
                 except (ValueError, KeyError, TypeError) as exc:
@@ -303,11 +314,15 @@ async def recording_index(
                     ) from exc
                 chunks.append(chunk)
                 for frame in frames:
+                    is_hand = len(frame.world_landmarks) == 21
                     for point in frame.world_landmarks:
-                        if not (
-                            isfinite(point.x)
-                            and isfinite(point.y)
-                            and point.visibility >= 0.35
+                        if not (isfinite(point.x) and isfinite(point.y)):
+                            continue
+                        if is_hand:
+                            if not isfinite(point.z):
+                                continue
+                        elif not (
+                            point.visibility >= 0.35
                             and (
                                 "presence" not in point.model_fields_set
                                 or point.presence is not None

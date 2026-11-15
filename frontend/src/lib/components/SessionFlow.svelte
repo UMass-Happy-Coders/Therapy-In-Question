@@ -2,6 +2,7 @@
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import PoseSetup from '#lib/components/PoseSetup.svelte';
+	import HandSetup from '#lib/components/HandSetup.svelte';
 	import MovementRecording from '#lib/components/MovementRecording.svelte';
 	import SessionMetrics from '#lib/components/SessionMetrics.svelte';
 	import { MovementRecorder, type RecordingState } from '#lib/pose/recording.js';
@@ -45,6 +46,7 @@
 	const scores = Array.from({ length: 11 }, (_, index) => index);
 	const plan = $derived(sessionSteps(session.program));
 	const step = $derived(plan[session.sets.length]!);
+	const ExerciseSetup = $derived(step?.exercise.exercise_type === 'seated_index_finger_bends' ? HandSetup : PoseSetup);
 	const recordedReps = $derived(session.sets.reduce((total, entry) => total + entry.reps_completed, 0));
 	const plannedReps = $derived(plan.reduce((total, entry) => total + entry.exercise.reps, 0));
 	const activeSeconds = $derived(session.sets.reduce((total, entry) => total + entry.elapsed_seconds, 0));
@@ -230,7 +232,7 @@
 			</section>
 		{:else}
 			{#key session.sets.length}
-				<PoseSetup
+				<ExerciseSetup
 					exercise={step.exercise}
 					sessionId={session.id}
 					setOrdinal={session.sets.length}

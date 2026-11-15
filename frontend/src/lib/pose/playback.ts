@@ -67,8 +67,8 @@ function isPoint(value: unknown): value is RecordedPoint {
 function isFrame(value: unknown): value is RecordedFrame {
 	return object(value) && typeof value.captured_at === 'string' && Number.isFinite(Date.parse(value.captured_at)) &&
 		finite(value.elapsed_ms) && value.elapsed_ms >= 0 && value.elapsed_ms <= 86400000 &&
-		Array.isArray(value.landmarks) && value.landmarks.length === 33 && value.landmarks.every(isPoint) &&
-		Array.isArray(value.world_landmarks) && value.world_landmarks.length === 33 && value.world_landmarks.every(isPoint) &&
+		Array.isArray(value.landmarks) && (value.landmarks.length === 33 || value.landmarks.length === 21) && value.landmarks.every(isPoint) &&
+		Array.isArray(value.world_landmarks) && value.world_landmarks.length === value.landmarks.length && value.world_landmarks.every(isPoint) &&
 		(value.phase === 'rest' || value.phase === 'raise' || value.phase === 'hold' || value.phase === 'lower') &&
 		integer(value.rep_number, 0, 100) && typeof value.rep_boundary === 'boolean' &&
 		Array.isArray(value.annotations) && value.annotations.length <= 4 && value.annotations.every((entry) => typeof entry === 'string' && entry.length <= 160);
@@ -177,6 +177,8 @@ export class RecordingPlayback {
 			stored.set_ordinal !== chunk.set_ordinal || stored.exercise_id !== chunk.exercise_id || stored.side !== chunk.side ||
 			stored.frame_count !== chunk.frame_count || !Array.isArray(stored.frames) ||
 			stored.frames.length !== chunk.frame_count || !stored.frames.every(isFrame)) throw new Error('The saved recording chunk is invalid.');
+		const expectedPoints = sessionSteps(this.session.program)[chunk.set_ordinal].exercise.exercise_type === 'seated_index_finger_bends' ? 21 : 33;
+		if (stored.frames.some((frame) => frame.landmarks.length !== expectedPoints)) throw new Error('The saved landmarks do not match this exercise.');
 		const frames = stored.frames as RecordedFrame[];
 		if (frames[0].elapsed_ms !== chunk.first_elapsed_ms || frames.at(-1)!.elapsed_ms !== chunk.last_elapsed_ms ||
 			frames.some((frame, index) => index > 0 && frame.elapsed_ms < frames[index - 1].elapsed_ms)) throw new Error('Recording timestamps are out of order.');

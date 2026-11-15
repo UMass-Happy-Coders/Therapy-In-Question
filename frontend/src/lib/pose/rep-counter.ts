@@ -7,6 +7,7 @@ export interface RepSample {
 	knee: number | null;
 	hip: number | null;
 	ankle: number | null;
+	finger: number | null;
 	hipY: number | null;
 	torsoHeight: number | null;
 }
@@ -51,7 +52,7 @@ export function makeRepSample(
 			torsoHeight = span;
 		}
 	}
-	return { timestamp, knee, hip, ankle, hipY, torsoHeight };
+	return { timestamp, knee, hip, ankle, finger: null, hipY, torsoHeight };
 }
 
 export class RepCounter {
@@ -104,7 +105,13 @@ export class RepCounter {
 			this.suspend();
 		}
 		const anklePumps = this.profile.exercise === 'seated_ankle_pumps';
-		if (anklePumps) {
+		const fingerBends = this.profile.exercise === 'seated_index_finger_bends';
+		if (fingerBends) {
+			if (sample.finger === null || !Number.isFinite(sample.finger)) {
+				this.invalidate('Finger angle unavailable');
+				return;
+			}
+		} else if (anklePumps) {
 			if (sample.ankle === null || !Number.isFinite(sample.ankle)) {
 				this.invalidate('Ankle angle unavailable');
 				return;
@@ -137,7 +144,7 @@ export class RepCounter {
 		const elapsed = this.lastTimestamp === null ? 0 : sample.timestamp - this.lastTimestamp;
 		this.lastTimestamp = sample.timestamp;
 		this.cue = null;
-		const primary = anklePumps ? sample.ankle! : legRaise ? sample.hip! : sample.knee!;
+		const primary = fingerBends ? sample.finger! : anklePumps ? sample.ankle! : legRaise ? sample.hip! : sample.knee!;
 		if (this.phase !== 'rest' && primary > this.peakAngle) this.peakAngle = primary;
 		const hipRise = sitToStand && this.restHipY !== null ? this.restHipY - sample.hipY! : 0;
 		const returnedHeight = this.restHipY === null || this.restTorsoHeight === null ||
