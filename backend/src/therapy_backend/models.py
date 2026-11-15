@@ -173,3 +173,44 @@ class ExerciseSessionSet(Base):
     comfort: Mapped[int] = mapped_column(Integer)
     notes: Mapped[str] = mapped_column(Text, server_default="")
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RepMetric(Base):
+    __tablename__ = "rep_metrics"
+
+    session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("exercise_sessions.id", ondelete="CASCADE"), primary_key=True
+    )
+    set_ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    rep_number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    clinic_id: Mapped[UUID] = mapped_column()
+    patient_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    exercise_id: Mapped[UUID] = mapped_column()
+    exercise_type: Mapped[str] = mapped_column(String(40))
+    start_angle: Mapped[float] = mapped_column(Float)
+    peak_angle: Mapped[float] = mapped_column(Float)
+    range_of_motion: Mapped[float] = mapped_column(Float)
+    target_angle: Mapped[float] = mapped_column(Float)
+    duration_ms: Mapped[int] = mapped_column(Integer)
+    hold_ms: Mapped[int] = mapped_column(Integer)
+
+
+class SetMetric(Base):
+    __tablename__ = "set_metrics"
+
+    session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("exercise_sessions.id", ondelete="CASCADE"), primary_key=True
+    )
+    set_ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    clinic_id: Mapped[UUID] = mapped_column()
+    patient_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    exercise_id: Mapped[UUID] = mapped_column()
+    exercise_type: Mapped[str] = mapped_column(String(40))
+    reps_completed: Mapped[int] = mapped_column(Integer)
+    reps_prescribed: Mapped[int] = mapped_column(Integer)
+    elapsed_seconds: Mapped[float] = mapped_column(Float)
+    pain: Mapped[int] = mapped_column(Integer)
+    difficulty: Mapped[int] = mapped_column(Integer)
+    comfort: Mapped[int] = mapped_column(Integer)

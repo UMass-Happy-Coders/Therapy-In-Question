@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
 CREATE TABLE IF NOT EXISTS clinics (
     id UUID PRIMARY KEY,
     name VARCHAR(200) NOT NULL
@@ -113,3 +115,135 @@ CREATE TABLE IF NOT EXISTS exercise_session_sets (
     CONSTRAINT exercise_session_sets_comfort_check CHECK (comfort BETWEEN 0 AND 10),
     CONSTRAINT exercise_session_sets_notes_check CHECK (char_length(notes) <= 1000)
 );
+
+CREATE TABLE IF NOT EXISTS rep_metrics (
+    recorded_at TIMESTAMPTZ NOT NULL,
+    clinic_id UUID NOT NULL,
+    patient_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id UUID NOT NULL REFERENCES exercise_sessions(id) ON DELETE CASCADE,
+    set_ordinal INTEGER NOT NULL,
+    exercise_id UUID NOT NULL,
+    exercise_type VARCHAR(40) NOT NULL,
+    rep_number INTEGER NOT NULL,
+    start_angle DOUBLE PRECISION NOT NULL,
+    peak_angle DOUBLE PRECISION NOT NULL,
+    range_of_motion DOUBLE PRECISION NOT NULL,
+    target_angle DOUBLE PRECISION NOT NULL,
+    duration_ms INTEGER NOT NULL,
+    hold_ms INTEGER NOT NULL,
+    PRIMARY KEY (session_id, set_ordinal, rep_number, recorded_at),
+    CONSTRAINT rep_metrics_rep_check CHECK (rep_number BETWEEN 1 AND 1000),
+    CONSTRAINT rep_metrics_range_check CHECK (range_of_motion BETWEEN 0 AND 360),
+    CONSTRAINT rep_metrics_duration_check CHECK (duration_ms BETWEEN 1 AND 600000),
+    CONSTRAINT rep_metrics_hold_check CHECK (hold_ms BETWEEN 0 AND 60000)
+);
+
+SELECT create_hypertable('rep_metrics', by_range('recorded_at'), if_not_exists => TRUE);
+
+CREATE INDEX IF NOT EXISTS rep_metrics_patient_time_idx
+    ON rep_metrics (patient_id, recorded_at DESC);
+
+CREATE TABLE IF NOT EXISTS set_metrics (
+    recorded_at TIMESTAMPTZ NOT NULL,
+    clinic_id UUID NOT NULL,
+    patient_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id UUID NOT NULL REFERENCES exercise_sessions(id) ON DELETE CASCADE,
+    set_ordinal INTEGER NOT NULL,
+    exercise_id UUID NOT NULL,
+    exercise_type VARCHAR(40) NOT NULL,
+    reps_completed INTEGER NOT NULL,
+    reps_prescribed INTEGER NOT NULL,
+    elapsed_seconds DOUBLE PRECISION NOT NULL,
+    pain INTEGER NOT NULL,
+    difficulty INTEGER NOT NULL,
+    comfort INTEGER NOT NULL,
+    PRIMARY KEY (session_id, set_ordinal, recorded_at),
+    CONSTRAINT set_metrics_reps_check CHECK (reps_completed BETWEEN 0 AND 1000),
+    CONSTRAINT set_metrics_prescribed_check CHECK (reps_prescribed BETWEEN 1 AND 100)
+);
+
+SELECT create_hypertable('set_metrics', by_range('recorded_at'), if_not_exists => TRUE);
+
+CREATE INDEX IF NOT EXISTS set_metrics_patient_time_idx
+    ON set_metrics (patient_id, recorded_at DESC);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS rep_metrics_daily
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
+SELECT
+    time_bucket(INTERVAL '1 day', recorded_at) AS bucket,
+    clinic_id,
+    patient_id,
+    exercise_type,
+    count(*) AS reps,
+    avg(range_of_motion) AS avg_range_of_motion,
+    max(range_of_motion) AS max_range_of_motion,
+    avg(peak_angle) AS avg_peak_angle,
+    max(peak_angle) AS max_peak_angle,
+    avg(duration_ms) AS avg_duration_ms
+FROM rep_metrics
+GROUP BY bucket, clinic_id, patient_id, exercise_type
+WITH NO DATA;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS rep_metrics_weekly
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
+SELECT
+    time_bucket(INTERVAL '7 days', recorded_at) AS bucket,
+    clinic_id,
+    patient_id,
+    exercise_type,
+    count(*) AS reps,
+    avg(range_of_motion) AS avg_range_of_motion,
+    max(range_of_motion) AS max_range_of_motion,
+    avg(peak_angle) AS avg_peak_angle,
+    max(peak_angle) AS max_peak_angle,
+    avg(duration_ms) AS avg_duration_ms
+FROM rep_metrics
+GROUP BY bucket, clinic_id, patient_id, exercise_type
+WITH NO DATA;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS adherence_daily
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
+SELECT
+    time_bucket(INTERVAL '1 day', recorded_at) AS bucket,
+    clinic_id,
+    patient_id,
+    count(*) AS sets_logged,
+    sum(reps_completed) AS reps_completed,
+    sum(reps_prescribed) AS reps_prescribed,
+    sum(elapsed_seconds) AS active_seconds,
+    avg(pain) AS avg_pain,
+    avg(difficulty) AS avg_difficulty,
+    avg(comfort) AS avg_comfort
+FROM set_metrics
+GROUP BY bucket, clinic_id, patient_id
+WITH NO DATA;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS adherence_weekly
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
+SELECT
+    time_bucket(INTERVAL '7 days', recorded_at) AS bucket,
+    clinic_id,
+    patient_id,
+    count(*) AS sets_logged,
+    sum(reps_completed) AS reps_completed,
+    sum(reps_prescribed) AS reps_prescribed,
+    sum(elapsed_seconds) AS active_seconds,
+    avg(pain) AS avg_pain,
+    avg(difficulty) AS avg_difficulty,
+    avg(comfort) AS avg_comfort
+FROM set_metrics
+GROUP BY bucket, clinic_id, patient_id
+WITH NO DATA;
+
+SELECT add_continuous_aggregate_policy('rep_metrics_daily',
+    start_offset => INTERVAL '3 days', end_offset => INTERVAL '1 hour',
+    schedule_interval => INTERVAL '1 hour', if_not_exists => TRUE);
+SELECT add_continuous_aggregate_policy('rep_metrics_weekly',
+    start_offset => INTERVAL '21 days', end_offset => INTERVAL '1 hour',
+    schedule_interval => INTERVAL '1 hour', if_not_exists => TRUE);
+SELECT add_continuous_aggregate_policy('adherence_daily',
+    start_offset => INTERVAL '3 days', end_offset => INTERVAL '1 hour',
+    schedule_interval => INTERVAL '1 hour', if_not_exists => TRUE);
+SELECT add_continuous_aggregate_policy('adherence_weekly',
+    start_offset => INTERVAL '21 days', end_offset => INTERVAL '1 hour',
+    schedule_interval => INTERVAL '1 hour', if_not_exists => TRUE);
