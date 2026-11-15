@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS program_exercises (
     program_id UUID NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
     position INTEGER NOT NULL CHECK (position >= 0),
     exercise_type VARCHAR(40) NOT NULL CHECK (
-        exercise_type IN ('seated_knee_extension', 'straight_leg_raise', 'sit_to_stand')
+        exercise_type IN ('seated_knee_extension', 'straight_leg_raise', 'sit_to_stand', 'seated_ankle_pumps')
     ),
     sets INTEGER NOT NULL CHECK (sets BETWEEN 1 AND 10),
     reps INTEGER NOT NULL CHECK (reps BETWEEN 1 AND 100),
@@ -48,6 +48,13 @@ CREATE TABLE IF NOT EXISTS program_exercises (
     hold_seconds INTEGER NOT NULL CHECK (hold_seconds BETWEEN 0 AND 60),
     CONSTRAINT program_exercises_position_key UNIQUE (program_id, position)
 );
+
+ALTER TABLE program_exercises
+    DROP CONSTRAINT IF EXISTS program_exercises_exercise_type_check,
+    DROP CONSTRAINT IF EXISTS program_exercises_type_check,
+    ADD CONSTRAINT program_exercises_type_check CHECK (
+        exercise_type IN ('seated_knee_extension', 'straight_leg_raise', 'sit_to_stand', 'seated_ankle_pumps')
+    );
 
 CREATE TABLE IF NOT EXISTS program_assignments (
     id UUID PRIMARY KEY,

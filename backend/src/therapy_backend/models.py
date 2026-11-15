@@ -72,7 +72,8 @@ class ProgramExercise(Base):
         UniqueConstraint("program_id", "position", name="program_exercises_position_key"),
         CheckConstraint("position >= 0", name="program_exercises_position_check"),
         CheckConstraint(
-            "exercise_type IN ('seated_knee_extension', 'straight_leg_raise', 'sit_to_stand')",
+            "exercise_type IN ('seated_knee_extension', 'straight_leg_raise', "
+            "'sit_to_stand', 'seated_ankle_pumps')",
             name="program_exercises_type_check",
         ),
         CheckConstraint("sets BETWEEN 1 AND 10", name="program_exercises_sets_check"),
