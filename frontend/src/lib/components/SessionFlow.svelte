@@ -3,12 +3,13 @@
 	import { beforeNavigate } from '$app/navigation';
 	import PoseSetup from '#lib/components/PoseSetup.svelte';
 	import MovementRecording from '#lib/components/MovementRecording.svelte';
+	import SessionMetrics from '#lib/components/SessionMetrics.svelte';
 	import { MovementRecorder, type RecordingState } from '#lib/pose/recording.js';
-	import { isPatientSession, sessionSteps, type PatientSession, type SetMeasurement } from '#lib/sessions.js';
+	import { isPatientSession, sessionSteps, type PatientSession, type SetResult } from '#lib/sessions.js';
 
 	let { initial }: { initial: PatientSession } = $props();
 	let session = $state(untrack(() => initial));
-	let measurement = $state<SetMeasurement | null>(null);
+	let measurement = $state<SetResult | null>(null);
 	let pain = $state<number | undefined>();
 	let difficulty = $state<number | undefined>();
 	let comfort = $state<number | undefined>();
@@ -135,6 +136,9 @@
 				{/each}
 			</tbody>
 		</table>
+		<div class="mt-10">
+			<SessionMetrics {session} />
+		</div>
 	{:else}
 		<div class="mb-6 flex items-end justify-between gap-8">
 			<div>
@@ -155,6 +159,29 @@
 					<div><dt>Reps recorded</dt><dd class="m-0 text-2xl font-semibold">{measurement.reps_completed} / {step.exercise.reps}</dd></div>
 					<div><dt>Active time</dt><dd class="m-0 text-2xl font-semibold tabular-nums">{activeTime(measurement.elapsed_seconds)}</dd></div>
 				</dl>
+				{#if measurement.rep_metrics.length}
+					<table class="mb-8 w-full border-collapse text-left text-sm">
+						<caption class="mb-3 text-left font-semibold">Measured reps (camera estimates)</caption>
+						<thead class="bg-[var(--ash-grey)]">
+							<tr>
+								<th scope="col" class="p-3">Rep</th><th scope="col" class="p-3">Start</th>
+								<th scope="col" class="p-3">Peak</th><th scope="col" class="p-3">Range of motion</th>
+								<th scope="col" class="p-3">Rep time</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each measurement.rep_metrics as rep (rep.rep_number)}
+								<tr>
+									<th scope="row" class="p-3 font-semibold tabular-nums">{rep.rep_number}</th>
+									<td class="p-3 tabular-nums">{rep.start_angle.toFixed(1)} deg</td>
+									<td class="p-3 tabular-nums">{rep.peak_angle.toFixed(1)} deg</td>
+									<td class="p-3 tabular-nums">{(rep.peak_angle - rep.start_angle).toFixed(1)} deg</td>
+									<td class="p-3 tabular-nums">{(rep.duration_ms / 1000).toFixed(1)} s</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{/if}
 				<form onsubmit={saveSet} aria-busy={pending}>
 					<fieldset disabled={pending} class="m-0 min-w-0 border-0 p-0">
 						<legend class="sr-only">Pain, difficulty, and comfort for this set</legend>
