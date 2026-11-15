@@ -47,10 +47,10 @@ class RecordingFrame(RecordingModel):
         float, Field(strict=True, ge=0, le=86400000, allow_inf_nan=False)
     ]
     landmarks: Annotated[
-        list[RecordingPoint], Field(strict=True, min_length=33, max_length=33)
+        list[RecordingPoint], Field(strict=True, min_length=21, max_length=33)
     ]
     world_landmarks: Annotated[
-        list[RecordingPoint], Field(strict=True, min_length=33, max_length=33)
+        list[RecordingPoint], Field(strict=True, min_length=21, max_length=33)
     ]
     phase: Literal["rest", "raise", "hold", "lower"]
     rep_number: Annotated[int, Field(strict=True, ge=0, le=100)]
@@ -59,6 +59,14 @@ class RecordingFrame(RecordingModel):
         list[Annotated[str, Field(strict=True, max_length=160)]],
         Field(strict=True, max_length=4),
     ]
+
+    @model_validator(mode="after")
+    def require_matching_landmarks(self) -> Self:
+        if len(self.landmarks) not in (21, 33):
+            raise ValueError("landmarks must contain exactly 21 or 33 points")
+        if len(self.world_landmarks) != len(self.landmarks):
+            raise ValueError("landmarks and world_landmarks must have matching lengths")
+        return self
 
     @field_validator("captured_at", mode="before")
     @classmethod
@@ -83,6 +91,8 @@ class RecordingChunkRequest(RecordingModel):
     @model_validator(mode="after")
     def require_ordered_frames(self) -> Self:
         for previous, current in zip(self.frames, self.frames[1:]):
+            if len(current.landmarks) != len(previous.landmarks):
+                raise ValueError("landmark count must be consistent within a chunk")
             if current.captured_at <= previous.captured_at:
                 raise ValueError("captured_at must strictly increase within a chunk")
             if current.elapsed_ms < previous.elapsed_ms:

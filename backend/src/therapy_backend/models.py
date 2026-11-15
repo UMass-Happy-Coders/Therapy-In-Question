@@ -97,7 +97,7 @@ class ProgramExercise(Base):
         CheckConstraint("position >= 0", name="program_exercises_position_check"),
         CheckConstraint(
             "exercise_type IN ('seated_knee_extension', 'straight_leg_raise', "
-            "'sit_to_stand', 'seated_ankle_pumps')",
+            "'sit_to_stand', 'seated_ankle_pumps', 'seated_index_finger_bends')",
             name="program_exercises_type_check",
         ),
         CheckConstraint("sets BETWEEN 1 AND 10", name="program_exercises_sets_check"),
