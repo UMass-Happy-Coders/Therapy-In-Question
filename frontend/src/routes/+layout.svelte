@@ -37,7 +37,9 @@
 <a class="skip-link" href="#main-content">Skip to main content</a>
 <header class="site-header">
 	<div class="header-inner">
-		<a class="wordmark" href="/" data-sveltekit-reload>Therapy in Question</a>
+		<a class="wordmark" href="/" data-sveltekit-reload>
+			<img src="/logo.svg" alt="Therapy in Question" width="224" height="48" class="block h-12 w-56" />
+		</a>
 		{#if data.user}
 			<div class="account">
 				<nav aria-label="Workspace" class="flex items-center gap-5 text-sm">
