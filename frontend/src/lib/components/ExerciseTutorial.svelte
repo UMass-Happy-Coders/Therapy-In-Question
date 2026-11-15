@@ -13,36 +13,39 @@
 	const walkthrough = $derived(exerciseWalkthrough(exercise));
 </script>
 
-<section aria-label="Exercise tutorial" class="py-6">
-	<h2 class="mb-2">Learn the movement</h2>
-	<p class="mb-2 text-xl font-semibold">{exercise.name}</p>
-	<p class="mb-2">
-		Assigned target: {exercise.target_label} {exercise.target_angle} degrees.
-		{#if exercise.hold_seconds > 0}
-			Hold for {exercise.hold_seconds} {exercise.hold_seconds === 1 ? 'second' : 'seconds'}.
-		{:else}
-			No hold assigned.
-		{/if}
-	</p>
-	<p class="mb-5 muted">Movement illustrations only, not measurements of your movement. The camera is not on yet.</p>
+<section aria-label="Exercise tutorial" class="py-2">
+	<div class="mb-6 flex items-end justify-between gap-8">
+		<div>
+			<h2 class="mb-2 text-2xl">Learn the movement</h2>
+			<p class="mb-0 text-sm">Follow these three steps before turning on your camera.</p>
+		</div>
+		<p class="mb-0 text-sm">Illustrations only. Your camera is off.</p>
+	</div>
 
-	<ol role="list" class="m-0 grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-3">
+	<ol role="list" class="m-0 grid list-none grid-cols-3 gap-8 p-0">
 		{#each walkthrough.steps as step, index (step.pose)}
 			<li>
-				<ExerciseIllustration exerciseType={exercise.exercise_type} pose={step.pose} targetAngle={exercise.target_angle} />
-				<h3 class="mb-2 mt-2 text-lg font-semibold">{index + 1}. {step.title}</h3>
-				<p class="mb-0">{step.instruction}</p>
+				<div class="mb-4 flex justify-center rounded-lg bg-[var(--surface)] py-2">
+					<ExerciseIllustration exerciseType={exercise.exercise_type} pose={step.pose} targetAngle={exercise.target_angle} />
+				</div>
+				<h3 class="mb-2 flex items-center gap-3 text-lg font-semibold">
+					<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--ash-grey)] text-sm">{index + 1}</span>
+					{step.title}
+				</h3>
+				<p class="mb-0 pl-10">{step.instruction}</p>
 			</li>
 		{/each}
 	</ol>
 
-	<div class="mt-6 max-w-4xl">
-		<h3 class="mb-2 text-lg font-semibold">Set up your camera</h3>
-		<p class="mb-3">{walkthrough.camera}</p>
-		<p class="mb-5">Only do this exercise if assigned by your therapist. Stop if pain increases. Camera measurements are estimates and are not clinically validated.</p>
+	<div class="mt-8 grid grid-cols-[1fr_auto] items-center gap-10 rounded-lg bg-[var(--ash-grey)] p-6">
+		<div>
+			<h3 class="mb-2 text-lg font-semibold">Set up your camera</h3>
+			<p class="mb-0 max-w-3xl text-sm">{walkthrough.camera}</p>
+		</div>
+		<button type="button" onclick={oncontinue} class="min-h-14 text-lg">
+			I am ready - start camera
+		</button>
 	</div>
+	<p class="mb-0 mt-4 max-w-4xl text-sm">Only do this exercise if assigned by your therapist. Stop if pain increases. Camera measurements are estimates and are not clinically validated.</p>
 	{@render children?.()}
-	<button type="button" onclick={oncontinue} class="min-h-14 w-full text-lg sm:w-auto">
-		I am ready - start camera
-	</button>
 </section>

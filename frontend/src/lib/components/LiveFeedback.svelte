@@ -183,10 +183,10 @@
 	});
 </script>
 
-<div class={sessionId ? 'grid grid-cols-2 gap-8 pt-6' : 'pt-6'}>
+<div class={`mt-4 rounded-lg bg-[var(--surface)] p-5${sessionId ? ' grid grid-cols-2 gap-8' : ''}`}>
 <section aria-labelledby="movement-cue-heading">
-	<h2 id="movement-cue-heading" class="mb-3">Movement cue</h2>
-	<p role="status" class={`m-0 text-lg font-semibold${corrective ? ' text-[var(--error)]' : ''}`}>{cue}</p>
+	<h2 id="movement-cue-heading" class="mb-3 text-base">Movement cue</h2>
+	<p role="status" class={`m-0 text-xl font-semibold leading-snug${corrective ? ' text-[var(--error)]' : ''}`}>{cue}</p>
 	{#if speechAvailable}
 		<label class="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm has-disabled:cursor-default">
 			<input type="checkbox" bind:checked={spokenEnabled} disabled={finished} class="h-4 w-4 accent-[var(--chocolate-plum)]" />
@@ -202,7 +202,7 @@
 
 {#if sessionId}
 	<section aria-labelledby="encouragement-heading">
-		<h2 id="encouragement-heading" class="mb-3">Encouragement</h2>
+		<h2 id="encouragement-heading" class="mb-3 text-base">Encouragement</h2>
 		<label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm has-disabled:cursor-default">
 			<input type="checkbox" bind:checked={encouragementEnabled} disabled={finished} aria-describedby="encouragement-privacy" class="h-4 w-4 accent-[var(--chocolate-plum)]" />
 			Gemini encouragement

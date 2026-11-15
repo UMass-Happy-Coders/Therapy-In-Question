@@ -488,8 +488,15 @@
 {#if !tutorialComplete}
 	<ExerciseTutorial {exercise} oncontinue={prepareCamera} />
 {:else}
-	<div class="grid grid-cols-[minmax(0,1fr)_19rem] items-start gap-8">
+	<div class="grid grid-cols-[minmax(0,1fr)_20rem] items-start gap-6">
 		<div class="w-full max-w-[960px]">
+			<RepProgress
+				exerciseType={exercise.exercise_type}
+				{reps}
+				{phase}
+				{holdElapsedMs}
+				holdMs={exercise.hold_seconds * 1000}
+			/>
 			<section aria-label="Exercise camera" class="relative">
 				<Webcam bind:video bind:live autostart />
 				<canvas
@@ -510,72 +517,18 @@
 				{phase}
 				{elapsedMs}
 			/>
-			<RepProgress
-				exerciseType={exercise.exercise_type}
-				{reps}
-				{phase}
-				{holdElapsedMs}
-				holdMs={exercise.hold_seconds * 1000}
-			/>
-			<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} {ankleRaw} {ankleFiltered} {ankleExercise} />
+			<details class="mt-5 rounded-lg bg-[var(--surface)] px-5 pb-5 pt-4">
+				<summary class="cursor-pointer font-semibold">Camera measurements</summary>
+				<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} {ankleRaw} {ankleFiltered} {ankleExercise} />
+			</details>
 		</div>
 
-		<section aria-labelledby="framing-heading" class="rounded-lg bg-[var(--surface)] p-6">
-			<h2 id="framing-heading" class="mb-6">Framing check</h2>
-
-			<fieldset disabled={session !== 'setup'} class="m-0 mb-6 min-w-0 border-0 p-0">
-				<legend class="mb-2 font-semibold">Tracking side</legend>
-				<div class="grid grid-cols-2 gap-3">
-					<label class="flex cursor-pointer items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 has-checked:bg-[var(--ash-grey)] has-disabled:cursor-default">
-						<input
-							type="radio"
-							name="tracking-side"
-							value="left"
-							checked={side === 'left'}
-							onchange={() => selectSide('left')}
-							class="accent-[var(--chocolate-plum)]"
-						/>
-						Left
-					</label>
-					<label class="flex cursor-pointer items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 has-checked:bg-[var(--ash-grey)] has-disabled:cursor-default">
-						<input
-							type="radio"
-							name="tracking-side"
-							value="right"
-							checked={side === 'right'}
-							onchange={() => selectSide('right')}
-							class="accent-[var(--chocolate-plum)]"
-						/>
-						Right
-					</label>
-				</div>
-			</fieldset>
-
+		<section aria-labelledby="framing-heading" class="sticky top-6 rounded-lg bg-[var(--surface)] p-6">
+			<h2 id="framing-heading" class="mb-5">Recording controls</h2>
 			<p role="status" class="mb-5 font-semibold">{framingStatus}</p>
 			{#if profile.configurationError}
 				<p role="alert" class="mb-5 text-sm text-[var(--error)]">{profile.configurationError}</p>
 			{/if}
-
-			{#if !finished}
-				<ul aria-label="Required joint visibility" class="m-0 mb-6 list-none space-y-3 p-0">
-					{#each joints as joint, index (joint.index)}
-						<li class="flex items-baseline justify-between gap-3 text-sm">
-							<span>{joint.label}</span>
-							<span class="font-semibold">{(visibleMask & requiredMask & (1 << index)) !== 0 ? 'Visible' : 'Not visible'}</span>
-						</li>
-					{/each}
-				</ul>
-			{/if}
-
-			{#if status === 'error' && !finished}
-				{#if modelError}
-					<p role="alert" class="mb-4 break-words text-sm text-[var(--error)]">{modelError}</p>
-				{/if}
-				<button class="button-secondary mb-4 w-full" onclick={retryDetection} disabled={!live || !captureAvailable}>
-					Retry pose detection
-				</button>
-			{/if}
-
 			{#if session !== 'setup'}
 				<dl class="m-0 mb-6">
 					<dt>Active time</dt>
@@ -614,6 +567,59 @@
 				<button class="button-secondary mt-3 w-full" onclick={reviewMovement} disabled={session === 'running'}>Review the movement</button>
 				<p class="mb-0 mt-4 text-sm">Press Space to start a countdown or pause. Press Escape to cancel or pause.</p>
 			{/if}
+
+			{#if status === 'error' && !finished}
+				{#if modelError}
+					<p role="alert" class="mb-4 break-words text-sm text-[var(--error)]">{modelError}</p>
+				{/if}
+				<button class="button-secondary mb-4 w-full" onclick={retryDetection} disabled={!live || !captureAvailable}>
+					Retry pose detection
+				</button>
+			{/if}
+			<details class="mt-6" open={session === 'setup'}>
+				<summary class="mb-3 cursor-pointer font-semibold">Tracking details</summary>
+			<fieldset disabled={session !== 'setup'} class="m-0 mb-4 min-w-0 border-0 p-0">
+				<legend class="mb-2 font-semibold">Tracking side</legend>
+				<div class="grid grid-cols-2 gap-3">
+					<label class="flex cursor-pointer items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 has-checked:bg-[var(--ash-grey)] has-disabled:cursor-default">
+						<input
+							type="radio"
+							name="tracking-side"
+							value="left"
+							checked={side === 'left'}
+							onchange={() => selectSide('left')}
+							class="accent-[var(--chocolate-plum)]"
+						/>
+						Left
+					</label>
+					<label class="flex cursor-pointer items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 has-checked:bg-[var(--ash-grey)] has-disabled:cursor-default">
+						<input
+							type="radio"
+							name="tracking-side"
+							value="right"
+							checked={side === 'right'}
+							onchange={() => selectSide('right')}
+							class="accent-[var(--chocolate-plum)]"
+						/>
+						Right
+					</label>
+				</div>
+			</fieldset>
+
+
+			{#if !finished}
+				<ul aria-label="Required joint visibility" class="m-0 mb-4 list-none space-y-2 p-0">
+					{#each joints as joint, index (joint.index)}
+						<li class="flex items-baseline justify-between gap-3 text-sm">
+							<span>{joint.label}</span>
+							<span class="font-semibold">{(visibleMask & requiredMask & (1 << index)) !== 0 ? 'Visible' : 'Not visible'}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+
+			</details>
+
 
 			<HandRaiseControls
 				enabled={handsFreeEnabled}

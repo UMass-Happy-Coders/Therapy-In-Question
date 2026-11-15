@@ -25,23 +25,23 @@
 	);
 </script>
 
-<section aria-labelledby="rep-progress-heading" class="pt-6">
-	<h2 id="rep-progress-heading" class="mb-4">Repetitions</h2>
-	<dl class="m-0 grid grid-cols-3 gap-6">
+<section aria-labelledby="rep-progress-heading" class="mb-4 rounded-lg bg-[var(--ash-grey)] px-6 py-4">
+	<h2 id="rep-progress-heading" class="sr-only">Repetitions</h2>
+	<dl class="m-0 grid grid-cols-3 items-center gap-6">
 		<div>
-			<dt class="mb-1 font-semibold">Completed reps</dt>
+			<dt class="mb-1 text-sm">Completed reps</dt>
 			<dd class="m-0">
-				<output aria-label="Completed reps" class="text-3xl font-semibold tabular-nums">{reps}</output>
+				<output aria-label="Completed reps" class="text-4xl font-semibold leading-none tabular-nums">{reps}</output>
 			</dd>
 		</div>
 		<div>
-			<dt class="mb-1 font-semibold">Exercise phase</dt>
+			<dt class="mb-1 text-sm">Exercise phase</dt>
 			<dd class="m-0">
-				<output aria-label="Exercise phase" class="text-lg">{phaseLabel}</output>
+				<output aria-label="Exercise phase" class="text-xl font-semibold">{phaseLabel}</output>
 			</dd>
 		</div>
 		<div>
-			<dt class="mb-1 font-semibold">Hold progress</dt>
+			<dt class="mb-1 text-sm">Hold progress</dt>
 			<dd class="m-0">
 				<output aria-label="Hold progress" class="text-lg tabular-nums">
 					{#if holdMs > 0}
