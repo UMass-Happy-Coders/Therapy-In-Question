@@ -59,11 +59,7 @@ async def post_recording_chunk(
             prescribed_exercise = exercise
             break
         ordinal += exercise.sets
-    if (
-        prescribed_exercise is None
-        or prescribed_exercise.id != body.exercise_id
-        or any(frame.rep_number > prescribed_exercise.reps for frame in body.frames)
-    ):
+    if prescribed_exercise is None or prescribed_exercise.id != body.exercise_id:
         raise HTTPException(status_code=409, detail="Chunk does not match the prescription.")
     await db.rollback()
     return await store_recording_chunk(
