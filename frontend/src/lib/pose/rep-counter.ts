@@ -1,16 +1,25 @@
 import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
-import type { TrackedSide } from '#lib/pose/framing.js';
+import { TRACKING_DROPOUT_MS, type TrackedSide } from '#lib/pose/framing.js';
 import type { RepPhase, RepProfile } from '#lib/pose/rep-profile.js';
 
 export interface RepSample {
 	timestamp: number;
 	knee: number | null;
 	hip: number | null;
+	ankle: number | null;
 	hipY: number | null;
 	torsoHeight: number | null;
 }
 
-const MAX_FRAME_GAP_MS = 500;
+export interface RepMeasurement {
+	rep_number: number;
+	start_angle: number;
+	peak_angle: number;
+	duration_ms: number;
+	hold_ms: number;
+}
+
+const MAX_FRAME_GAP_MS = TRACKING_DROPOUT_MS;
 const MIN_TORSO_HEIGHT = 0.025;
 const CONFIGURATION_ERROR = 'The movement target does not leave a reliable rep range.';
 
@@ -28,6 +37,7 @@ export function makeRepSample(
 	side: TrackedSide,
 	knee: number | null,
 	hip: number | null,
+	ankle: number | null,
 	timestamp: number
 ): RepSample {
 	const hipPoint = normalized?.[side === 'left' ? 23 : 24];
@@ -41,7 +51,7 @@ export function makeRepSample(
 			torsoHeight = span;
 		}
 	}
-	return { timestamp, knee, hip, hipY, torsoHeight };
+	return { timestamp, knee, hip, ankle, hipY, torsoHeight };
 }
 
 export class RepCounter {
@@ -49,6 +59,7 @@ export class RepCounter {
 	phase: RepPhase = 'rest';
 	holdElapsedMs = 0;
 	cue: string | null;
+	measurements: RepMeasurement[] = [];
 	private readonly configurationError: string | null;
 	private lastTimestamp: number | null = null;
 	private restSince: number | null = null;
@@ -57,6 +68,10 @@ export class RepCounter {
 	private kneeStraight = false;
 	private restHipY: number | null = null;
 	private restTorsoHeight: number | null = null;
+	private restAngle: number | null = null;
+	private startAngle = 0;
+	private peakAngle = 0;
+	private repStartAt = 0;
 
 	constructor(private readonly profile: RepProfile) {
 		this.configurationError = profile.configurationError ?? (
@@ -88,7 +103,13 @@ export class RepCounter {
 		if (this.lastTimestamp !== null && sample.timestamp - this.lastTimestamp > MAX_FRAME_GAP_MS) {
 			this.suspend();
 		}
-		if (sample.knee === null || !Number.isFinite(sample.knee)) {
+		const anklePumps = this.profile.exercise === 'seated_ankle_pumps';
+		if (anklePumps) {
+			if (sample.ankle === null || !Number.isFinite(sample.ankle)) {
+				this.invalidate('Ankle angle unavailable');
+				return;
+			}
+		} else if (sample.knee === null || !Number.isFinite(sample.knee)) {
 			this.invalidate('Knee angle unavailable');
 			return;
 		}
@@ -107,8 +128,8 @@ export class RepCounter {
 			return;
 		}
 		if (legRaise) {
-			if (sample.knee >= 165) this.kneeStraight = true;
-			if (sample.knee < 155 || !this.kneeStraight) {
+			if (sample.knee! >= 165) this.kneeStraight = true;
+			if (sample.knee! < 155 || !this.kneeStraight) {
 				this.invalidate('Knee bent');
 				return;
 			}
@@ -116,7 +137,8 @@ export class RepCounter {
 		const elapsed = this.lastTimestamp === null ? 0 : sample.timestamp - this.lastTimestamp;
 		this.lastTimestamp = sample.timestamp;
 		this.cue = null;
-		const primary = legRaise ? sample.hip! : sample.knee;
+		const primary = anklePumps ? sample.ankle! : legRaise ? sample.hip! : sample.knee!;
+		if (this.phase !== 'rest' && primary > this.peakAngle) this.peakAngle = primary;
 		const hipRise = sitToStand && this.restHipY !== null ? this.restHipY - sample.hipY! : 0;
 		const returnedHeight = this.restHipY === null || this.restTorsoHeight === null ||
 			Math.abs(hipRise) <= this.restTorsoHeight * 0.12;
@@ -136,6 +158,7 @@ export class RepCounter {
 
 		if (this.phase === 'rest') {
 			if (resting) {
+				this.restAngle = Math.min(this.restAngle ?? primary, primary);
 				this.restSince ??= sample.timestamp;
 				if (sample.timestamp - this.restSince >= this.profile.restDwellMs) {
 					this.armed = true;
@@ -154,11 +177,15 @@ export class RepCounter {
 				return;
 			}
 			this.phase = 'raise';
+			this.startAngle = Math.min(this.restAngle ?? primary, primary);
+			this.peakAngle = primary;
+			this.repStartAt = sample.timestamp;
 		}
 
 		if (this.phase === 'raise') {
 			if (resting) {
 				this.phase = 'rest';
+				this.restAngle = primary;
 				this.armed = false;
 				this.restSince = sample.timestamp;
 				return;
@@ -186,8 +213,18 @@ export class RepCounter {
 			if (resting) {
 				this.restSince ??= sample.timestamp;
 				if (sample.timestamp - this.restSince < this.profile.restDwellMs) return;
-				if (this.qualified) this.reps += 1;
+				if (this.qualified) {
+					this.reps += 1;
+					this.measurements.push({
+						rep_number: this.reps,
+						start_angle: this.startAngle,
+						peak_angle: this.peakAngle,
+						duration_ms: Math.max(1, Math.round(sample.timestamp - this.repStartAt)),
+						hold_ms: Math.round(this.holdElapsedMs)
+					});
+				}
 				this.phase = 'rest';
+				this.restAngle = primary;
 				this.holdElapsedMs = 0;
 				this.qualified = false;
 				this.armed = true;
@@ -214,11 +251,13 @@ export class RepCounter {
 		this.kneeStraight = false;
 		this.restHipY = null;
 		this.restTorsoHeight = null;
+		this.restAngle = null;
 	}
 
 	reset(): void {
 		this.suspend();
 		this.reps = 0;
+		this.measurements = [];
 	}
 
 	private invalidate(cue: string): void {

@@ -1,8 +1,13 @@
+import type { RepMeasurement } from '#lib/pose/rep-counter.js';
 import { isProgramDetail, type ProgramDetail, type ProgramExercise } from '#lib/programs.js';
 
 export interface SetMeasurement {
 	reps_completed: number;
 	elapsed_seconds: number;
+}
+
+export interface SetResult extends SetMeasurement {
+	rep_metrics: RepMeasurement[];
 }
 
 export interface SessionSet extends SetMeasurement {

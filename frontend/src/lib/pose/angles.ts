@@ -1,6 +1,6 @@
 import type { Landmark, NormalizedLandmark } from '@mediapipe/tasks-vision';
 import type { TrackedSide } from '#lib/pose/framing.js';
-import { hipFlexionAngle, jointAngle } from '#lib/pose/geometry.js';
+import { anklePlantarFlexionAngle, hipFlexionAngle, jointAngle } from '#lib/pose/geometry.js';
 import { OneEuroFilter } from '#lib/pose/one-euro.js';
 
 export interface AngleMeasurement {
@@ -11,11 +11,12 @@ export interface AngleMeasurement {
 export interface JointAngleFrame {
 	knee: AngleMeasurement | null;
 	hip: AngleMeasurement | null;
+	ankle: AngleMeasurement | null;
 }
 
 const JOINT_INDICES = {
-	left: { shoulder: 11, hip: 23, knee: 25, ankle: 27, oppositeHip: 24 },
-	right: { shoulder: 12, hip: 24, knee: 26, ankle: 28, oppositeHip: 23 }
+	left: { shoulder: 11, hip: 23, knee: 25, ankle: 27, heel: 29, toe: 31, oppositeHip: 24 },
+	right: { shoulder: 12, hip: 24, knee: 26, ankle: 28, heel: 30, toe: 32, oppositeHip: 23 }
 };
 const CONFIDENCE_THRESHOLD = 0.65;
 const FRAME_MARGIN = 0.04;
@@ -55,13 +56,18 @@ export class JointAngleEstimator {
 	private readonly indices: (typeof JOINT_INDICES)[TrackedSide];
 	private readonly kneeFilter = new OneEuroFilter();
 	private readonly hipFilter = new OneEuroFilter();
+	private readonly ankleFilter = new OneEuroFilter();
 	private readonly kneeMeasurement: AngleMeasurement = { raw: 0, filtered: 0 };
 	private readonly hipMeasurement: AngleMeasurement = { raw: 0, filtered: 0 };
-	private readonly frame: JointAngleFrame = { knee: null, hip: null };
+	private readonly ankleMeasurement: AngleMeasurement = { raw: 0, filtered: 0 };
+	private readonly frame: JointAngleFrame = { knee: null, hip: null, ankle: null };
 	private lastTimestamp: number | null = null;
 	private lastHipInput: number | null = null;
+	private ankleNeutral: number | null = null;
+	private ankleNeutralAt = 0;
+	private ankleNeutralLocked = false;
 
-	constructor(side: TrackedSide) {
+	constructor(side: TrackedSide, private readonly ankleOnly: boolean) {
 		this.indices = JOINT_INDICES[side];
 	}
 
@@ -72,6 +78,7 @@ export class JointAngleEstimator {
 	): JointAngleFrame {
 		this.frame.knee = null;
 		this.frame.hip = null;
+		this.frame.ankle = null;
 		if (
 			!Number.isFinite(timestampMs) ||
 			(this.lastTimestamp !== null && timestampMs <= this.lastTimestamp) ||
@@ -85,9 +92,34 @@ export class JointAngleEstimator {
 			this.reset();
 		}
 		this.lastTimestamp = timestampMs;
-		const hip = worldPoint(normalized, world, this.indices.hip);
 		const knee = worldPoint(normalized, world, this.indices.knee);
 		const ankle = worldPoint(normalized, world, this.indices.ankle);
+		if (this.ankleOnly) {
+			const heel = worldPoint(normalized, world, this.indices.heel);
+			const toe = worldPoint(normalized, world, this.indices.toe);
+			const raw = knee && ankle && heel && toe
+				? anklePlantarFlexionAngle(knee, ankle, heel, toe) : null;
+			if (raw === null) {
+				this.ankleFilter.reset();
+				if (!this.ankleNeutralLocked) this.ankleNeutral = null;
+			} else {
+				const filtered = this.ankleFilter.filter(raw, timestampMs);
+				if (filtered !== null) {
+					if (!this.ankleNeutralLocked) {
+						this.ankleNeutral = this.ankleNeutral === null
+							? filtered
+							: this.ankleNeutral + (filtered - this.ankleNeutral) *
+								Math.min(1, (timestampMs - this.ankleNeutralAt) / 1000);
+						this.ankleNeutralAt = timestampMs;
+					}
+					this.ankleMeasurement.raw = raw - this.ankleNeutral!;
+					this.ankleMeasurement.filtered = filtered - this.ankleNeutral!;
+					this.frame.ankle = this.ankleMeasurement;
+				}
+			}
+			return this.frame;
+		}
+		const hip = worldPoint(normalized, world, this.indices.hip);
 		const shoulder = worldPoint(normalized, world, this.indices.shoulder);
 		const oppositeHip = worldPoint(normalized, world, this.indices.oppositeHip);
 		const leftHip = this.indices.hip === 23 ? hip : oppositeHip;
@@ -126,12 +158,19 @@ export class JointAngleEstimator {
 		return this.frame;
 	}
 
+	lockAnkleNeutral() {
+		this.ankleNeutralLocked = this.ankleNeutral !== null;
+	}
+
 	reset() {
 		this.kneeFilter.reset();
 		this.hipFilter.reset();
+		this.ankleFilter.reset();
 		this.lastTimestamp = null;
 		this.lastHipInput = null;
 		this.frame.knee = null;
 		this.frame.hip = null;
+		this.frame.ankle = null;
+		if (!this.ankleNeutralLocked) this.ankleNeutral = null;
 	}
 }
