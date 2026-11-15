@@ -19,6 +19,15 @@
 	const plan = $derived(sessionSteps(session.program));
 	const phases = { rest: 'Rest', raise: 'Raise', hold: 'Hold', lower: 'Lower' };
 	const step = $derived(current ? plan[current.chunk.set_ordinal] : null);
+	const repGroups = $derived.by(() => {
+		const groups = new Map<number, PlaybackIndex['reps']>();
+		for (const marker of index?.reps ?? []) {
+			const group = groups.get(marker.setOrdinal);
+			if (group) group.push(marker);
+			else groups.set(marker.setOrdinal, [marker]);
+		}
+		return [...groups.entries()];
+	});
 
 	function time(milliseconds: number) {
 		const centiseconds = Math.floor(milliseconds / 10);
@@ -134,8 +143,15 @@
 			<div>
 				<RecordedSkeleton frame={current?.frame ?? null} bounds={index.bounds} frameNumber={position + 1} />
 				<div class="mt-5 flex items-center justify-between gap-6">
-					<label for="playback-frame" class="font-semibold">Frame <output aria-label="Playback frame">{position + 1}</output> of {index.frames}</label>
-					<span role="status">{loading ? 'Loading frame...' : buffering ? 'Buffering...' : playing ? 'Playing' : position === index.frames - 1 ? 'Playback finished' : 'Paused'}</span>
+					<div class="flex gap-3">
+						<button class="min-w-28" onclick={() => playing ? pause() : void play()} disabled={loading && !playing || !!errorMessage}>{playing ? 'Pause' : 'Play'}</button>
+						<button class="button-secondary" onclick={() => { repSelection = ''; void seek(position - 1); }} disabled={position === 0}>Previous frame</button>
+						<button class="button-secondary" onclick={() => { repSelection = ''; void seek(position + 1); }} disabled={position === index.frames - 1}>Next frame</button>
+					</div>
+					<div class="text-right tabular-nums">
+						<label for="playback-frame" class="block font-semibold">Frame <output aria-label="Playback frame">{position + 1}</output> of {index.frames}</label>
+						<span role="status" class="text-sm">{loading ? 'Loading frame...' : buffering ? 'Buffering...' : playing ? 'Playing' : position === index.frames - 1 ? 'Playback finished' : 'Paused'}</span>
+					</div>
 				</div>
 				<input
 					id="playback-frame"
@@ -149,22 +165,16 @@
 					oninput={(event) => { repSelection = ''; void seek(Number(event.currentTarget.value)); }}
 					class="mt-3 h-11 w-full cursor-pointer accent-[var(--chocolate-plum)]"
 				/>
-				<div class="mt-4 flex gap-3">
-					<button onclick={() => playing ? pause() : void play()} disabled={loading && !playing || !!errorMessage}>{playing ? 'Pause' : 'Play'}</button>
-					<button class="button-secondary" onclick={() => { void seek(position - 1); }} disabled={position === 0}>Previous frame</button>
-					<button class="button-secondary" onclick={() => { void seek(position + 1); }} disabled={position === index.frames - 1}>Next frame</button>
-				</div>
-				<p class="mb-0 mt-4 text-sm">Unrecorded pauses are skipped. No video is stored or played.</p>
+				<p class="mb-0 mt-1 text-sm">Use arrow keys on the timeline to step through frames. Unrecorded pauses are skipped.</p>
 			</div>
 			<section aria-labelledby="recorded-frame-heading" class="rounded-lg bg-[var(--surface)] p-6">
-				<h2 id="recorded-frame-heading">Recorded frame</h2>
+				<h2 id="recorded-frame-heading">Movement details</h2>
 				{#if current && step}
-					<p class="mb-5 font-semibold">{step.exercise.name} - Set {step.set_number}</p>
-					<dl class="m-0 space-y-5">
-						<div><dt>Active time</dt><dd class="m-0 text-2xl font-semibold tabular-nums"><output aria-label="Playback active time">{time(current.frame.elapsed_ms)}</output></dd></div>
-						<div><dt>Phase</dt><dd class="m-0 font-semibold"><output aria-label="Playback phase">{phases[current.frame.phase]}</output></dd></div>
-						<div><dt>Completed reps</dt><dd class="m-0 font-semibold">{current.frame.rep_number}</dd></div>
-						<div><dt>Tracked side</dt><dd class="m-0 font-semibold">{current.chunk.side === 'left' ? 'Left' : 'Right'}</dd></div>
+					<p class="mb-6 text-lg font-semibold leading-snug">{step.exercise.name}<span class="mt-2 block text-sm font-normal">Set {step.set_number} - {current.chunk.side === 'left' ? 'Left' : 'Right'} side</span></p>
+					<dl class="m-0 grid grid-cols-2 gap-x-6 gap-y-5">
+						<div class="col-span-2"><dt>Active time</dt><dd class="m-0 text-3xl font-semibold tabular-nums"><output aria-label="Playback active time">{time(current.frame.elapsed_ms)}</output></dd></div>
+						<div><dt>Phase</dt><dd class="m-0 text-xl font-semibold"><output aria-label="Playback phase">{phases[current.frame.phase]}</output></dd></div>
+						<div><dt>Completed reps</dt><dd class="m-0 text-xl font-semibold tabular-nums">{current.frame.rep_number}</dd></div>
 					</dl>
 					{#if current.frame.annotations.length > 0}
 						<ul aria-label="Recorded cues" class="mb-0 mt-6 list-none space-y-2 p-0">
@@ -175,8 +185,12 @@
 				<label for="playback-rep" class="mb-2 mt-7 block font-semibold">Jump to completed rep</label>
 				<select id="playback-rep" bind:value={repSelection} disabled={index.reps.length === 0} onchange={(event) => { if (event.currentTarget.value !== '') void seek(Number(event.currentTarget.value)); }} class="min-h-11 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3">
 					<option value="" disabled>{index.reps.length === 0 ? 'No completed rep markers' : 'Choose rep completion'}</option>
-					{#each index.reps as marker (marker.position)}
-						<option value={String(marker.position)}>{plan[marker.setOrdinal].exercise.name}, set {plan[marker.setOrdinal].set_number}, rep {marker.rep}</option>
+					{#each repGroups as [setOrdinal, markers] (setOrdinal)}
+						<optgroup label={`${plan[setOrdinal].exercise.name} - Set ${plan[setOrdinal].set_number}`}>
+							{#each markers as marker (marker.position)}
+								<option value={String(marker.position)}>Rep {marker.rep} - frame {marker.position + 1}</option>
+							{/each}
+						</optgroup>
 					{/each}
 				</select>
 			</section>
