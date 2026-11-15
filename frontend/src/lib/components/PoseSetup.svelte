@@ -48,6 +48,8 @@
 	let kneeFiltered = $state<number | null>(null);
 	let hipRaw = $state<number | null>(null);
 	let hipFiltered = $state<number | null>(null);
+	let ankleRaw = $state<number | null>(null);
+	let ankleFiltered = $state<number | null>(null);
 	let heightAvailable = $state(false);
 	let reps = $state(0);
 	let phase = $state<RepPhase>('rest');
@@ -68,10 +70,12 @@
 	let runId = '';
 
 	const finished = $derived(session === 'finished');
+	const ankleExercise = $derived(exercise.exercise_type === 'seated_ankle_pumps');
 	const feedbackCue = $derived(movementCue(exercise, session, phase, reps, holdElapsedMs, repCue));
 	const requiredAnglesReady = $derived(
-		kneeFiltered !== null &&
-		(exercise.exercise_type === 'seated_knee_extension' || hipFiltered !== null)
+		ankleExercise ? ankleFiltered !== null :
+			kneeFiltered !== null &&
+			(exercise.exercise_type === 'seated_knee_extension' || hipFiltered !== null)
 	);
 	const requiredHeightReady = $derived(
 		exercise.exercise_type !== 'sit_to_stand' || heightAvailable
@@ -139,6 +143,8 @@
 		kneeFiltered = null;
 		hipRaw = null;
 		hipFiltered = null;
+		ankleRaw = null;
+		ankleFiltered = null;
 		heightAvailable = false;
 		lastFrameAt = 0;
 		copyGate();
@@ -229,7 +235,7 @@
 		return untrack(() => {
 			const token = ++generation;
 			gate = new FramingGate(exerciseType, currentSide);
-			angleEstimator = new JointAngleEstimator(currentSide);
+			angleEstimator = new JointAngleEstimator(currentSide, exerciseType === 'seated_ankle_pumps');
 			clearFraming();
 			pauseExercise('Camera tracking unavailable');
 			modelError = '';
@@ -282,8 +288,10 @@
 					kneeFiltered = angles.knee?.filtered ?? null;
 					hipRaw = angles.hip?.raw ?? null;
 					hipFiltered = angles.hip?.filtered ?? null;
+					ankleRaw = angles.ankle?.raw ?? null;
+					ankleFiltered = angles.ankle?.filtered ?? null;
 					const sample = makeRepSample(
-						landmarks, currentSide, kneeFiltered, hipFiltered, timestamp
+						landmarks, currentSide, kneeFiltered, hipFiltered, ankleFiltered, timestamp
 					);
 					heightAvailable = sample.hipY !== null && sample.torsoHeight !== null;
 					lastFrameAt = timestamp;
@@ -293,6 +301,7 @@
 							pauseExercise(
 								!recordingReady ? 'Movement recording unavailable'
 									: !ready ? 'Required joints not visible'
+									: ankleExercise ? 'Ankle tracking unavailable'
 									: kneeFiltered === null ? 'Knee tracking unavailable'
 										: !requiredAnglesReady ? 'Hip tracking unavailable'
 											: 'Hip height unavailable'
@@ -353,6 +362,10 @@
 	});
 </script>
 
+{#if ankleExercise}
+	<p class="mb-6 max-w-4xl">Sit with your leg supported and your foot free to move. Keep the selected knee, ankle, heel and toes in the side view. Only do this exercise if assigned by your therapist; stop if pain increases.</p>
+{/if}
+
 <div class="grid grid-cols-[minmax(0,1fr)_19rem] items-start gap-8">
 	<div class="w-full max-w-[960px]">
 		<section aria-label="Exercise camera" class="relative">
@@ -375,12 +388,13 @@
 			{elapsedMs}
 		/>
 		<RepProgress
+			exerciseType={exercise.exercise_type}
 			{reps}
 			{phase}
 			{holdElapsedMs}
 			holdMs={exercise.hold_seconds * 1000}
 		/>
-		<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} />
+		<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} {ankleRaw} {ankleFiltered} {ankleExercise} />
 	</div>
 
 	<section aria-labelledby="framing-heading" class="rounded-lg bg-[var(--surface)] p-6">

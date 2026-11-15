@@ -6,6 +6,7 @@ export interface RepSample {
 	timestamp: number;
 	knee: number | null;
 	hip: number | null;
+	ankle: number | null;
 	hipY: number | null;
 	torsoHeight: number | null;
 }
@@ -28,6 +29,7 @@ export function makeRepSample(
 	side: TrackedSide,
 	knee: number | null,
 	hip: number | null,
+	ankle: number | null,
 	timestamp: number
 ): RepSample {
 	const hipPoint = normalized?.[side === 'left' ? 23 : 24];
@@ -41,7 +43,7 @@ export function makeRepSample(
 			torsoHeight = span;
 		}
 	}
-	return { timestamp, knee, hip, hipY, torsoHeight };
+	return { timestamp, knee, hip, ankle, hipY, torsoHeight };
 }
 
 export class RepCounter {
@@ -88,7 +90,13 @@ export class RepCounter {
 		if (this.lastTimestamp !== null && sample.timestamp - this.lastTimestamp > MAX_FRAME_GAP_MS) {
 			this.suspend();
 		}
-		if (sample.knee === null || !Number.isFinite(sample.knee)) {
+		const anklePumps = this.profile.exercise === 'seated_ankle_pumps';
+		if (anklePumps) {
+			if (sample.ankle === null || !Number.isFinite(sample.ankle)) {
+				this.invalidate('Ankle angle unavailable');
+				return;
+			}
+		} else if (sample.knee === null || !Number.isFinite(sample.knee)) {
 			this.invalidate('Knee angle unavailable');
 			return;
 		}
@@ -107,8 +115,8 @@ export class RepCounter {
 			return;
 		}
 		if (legRaise) {
-			if (sample.knee >= 165) this.kneeStraight = true;
-			if (sample.knee < 155 || !this.kneeStraight) {
+			if (sample.knee! >= 165) this.kneeStraight = true;
+			if (sample.knee! < 155 || !this.kneeStraight) {
 				this.invalidate('Knee bent');
 				return;
 			}
@@ -116,7 +124,7 @@ export class RepCounter {
 		const elapsed = this.lastTimestamp === null ? 0 : sample.timestamp - this.lastTimestamp;
 		this.lastTimestamp = sample.timestamp;
 		this.cue = null;
-		const primary = legRaise ? sample.hip! : sample.knee;
+		const primary = anklePumps ? sample.ankle! : legRaise ? sample.hip! : sample.knee!;
 		const hipRise = sitToStand && this.restHipY !== null ? this.restHipY - sample.hipY! : 0;
 		const returnedHeight = this.restHipY === null || this.restTorsoHeight === null ||
 			Math.abs(hipRise) <= this.restTorsoHeight * 0.12;

@@ -146,7 +146,7 @@
 		<dl class="mb-6 grid max-w-4xl grid-cols-3 gap-6">
 			<div><dt>Target reps</dt><dd class="m-0 text-lg font-semibold">{step.exercise.reps}</dd></div>
 			<div><dt>{step.exercise.target_label}</dt><dd class="m-0 text-lg font-semibold">{step.exercise.target_angle} degrees</dd></div>
-			<div><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} seconds` : 'No hold'}</dd></div>
+			<div><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} ${step.exercise.hold_seconds === 1 ? 'second' : 'seconds'}` : 'No hold'}</dd></div>
 		</dl>
 		<MovementRecording state={recording} onretry={retryRecording} />
 		{#if measurement}
