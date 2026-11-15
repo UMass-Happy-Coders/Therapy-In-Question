@@ -7,7 +7,7 @@
 	import LiveFeedback from '#lib/components/LiveFeedback.svelte';
 	import ExerciseTutorial from '#lib/components/ExerciseTutorial.svelte';
 	import { JointAngleEstimator } from '#lib/pose/angles.js';
-	import { FramingGate, type RequiredJoint, type TrackedSide } from '#lib/pose/framing.js';
+	import { FramingGate, TRACKING_DROPOUT_MS, type RequiredJoint, type TrackedSide } from '#lib/pose/framing.js';
 	import { HandRaiseGesture, type HandRaiseState } from '#lib/pose/hand-raise.js';
 	import { RepCounter, makeRepSample } from '#lib/pose/rep-counter.js';
 	import { createRepProfile, type RepPhase } from '#lib/pose/rep-profile.js';
@@ -46,6 +46,7 @@
 	let visibleMask = $state(0);
 	let requiredMask = $state(0);
 	let stabilizing = $state(false);
+	let trackingGap = $state(false);
 	let joints = $state<readonly RequiredJoint[]>([]);
 	let kneeRaw = $state<number | null>(null);
 	let kneeFiltered = $state<number | null>(null);
@@ -67,6 +68,7 @@
 	let angleEstimator: JointAngleEstimator;
 	let generation = 0;
 	let lastFrameAt = 0;
+	let lastUsableAt = 0;
 	let accumulatedMs = 0;
 	let runningSince = 0;
 	let clock: ReturnType<typeof setInterval> | undefined;
@@ -109,7 +111,8 @@
 					? 'Pose detection unavailable'
 					: status === 'loading'
 						? 'Loading pose detection'
-						: ready
+						: trackingGap ? 'Holding through a brief tracking gap'
+						: ready && visibleMask === requiredMask
 							? !requiredAnglesReady
 								? 'Joint tracking unavailable'
 								: !requiredHeightReady ? 'Hip height unavailable' : 'Joints visible'
@@ -222,6 +225,8 @@
 		ankleFiltered = null;
 		heightAvailable = false;
 		lastFrameAt = 0;
+		lastUsableAt = 0;
+		trackingGap = false;
 		copyGate();
 	}
 
@@ -370,43 +375,60 @@
 					}
 					gate.update(landmarks, timestamp);
 					const angles = angleEstimator.update(landmarks, worldLandmarks, timestamp);
-					kneeRaw = angles.knee?.raw ?? null;
-					kneeFiltered = angles.knee?.filtered ?? null;
-					hipRaw = angles.hip?.raw ?? null;
-					hipFiltered = angles.hip?.filtered ?? null;
-					ankleRaw = angles.ankle?.raw ?? null;
-					ankleFiltered = angles.ankle?.filtered ?? null;
 					const sample = makeRepSample(
-						landmarks, currentSide, kneeFiltered, hipFiltered, ankleFiltered, timestamp
+						landmarks,
+						currentSide,
+						angles.knee?.filtered ?? null,
+						angles.hip?.filtered ?? null,
+						angles.ankle?.filtered ?? null,
+						timestamp
 					);
-					heightAvailable = sample.hipY !== null && sample.torsoHeight !== null;
 					lastFrameAt = timestamp;
-					copyGate();
-					const runningAtFrame = session === 'running';
-					if (!runningAtFrame && preparation.armed) {
-						positionReady = canBegin && startingPositionReady(profile, sample);
-						if (positionReady) counter.update(sample);
-						else counter.suspend();
-						countdown?.update(positionReady, timestamp);
-					}
-					if (runningAtFrame && session === 'running') {
-						if (!recordingReady || !ready || !requiredAnglesReady || !requiredHeightReady) {
-							pauseExercise(
-								!recordingReady ? 'Movement recording unavailable'
-									: !ready ? 'Required joints not visible'
-									: ankleExercise ? 'Ankle tracking unavailable'
-									: kneeFiltered === null ? 'Knee tracking unavailable'
-										: !requiredAnglesReady ? 'Hip tracking unavailable'
-											: 'Hip height unavailable'
-							);
-						} else {
-							counter.update(sample);
-							copyCounter();
-							if (onrecord && landmarks && worldLandmarks && !onrecord({
-								landmarks, worldLandmarks, timestamp,
-								elapsedMs: accumulatedMs + timestamp - runningSince,
-								phase, reps, cue: feedbackCue, side: currentSide, runId
-							})) pauseExercise('Movement recording buffer full');
+					const usable = gate.visibleMask === gate.requiredMask &&
+						(exerciseType === 'seated_ankle_pumps'
+							? angles.ankle !== null
+							: angles.knee !== null &&
+								(exerciseType === 'seated_knee_extension' || angles.hip !== null)) &&
+						(exerciseType !== 'sit_to_stand' ||
+							(sample.hipY !== null && sample.torsoHeight !== null));
+					if (usable) lastUsableAt = timestamp;
+					trackingGap = !usable && gate.ready &&
+						timestamp - lastUsableAt <= TRACKING_DROPOUT_MS;
+					if (!trackingGap) {
+						kneeRaw = angles.knee?.raw ?? null;
+						kneeFiltered = angles.knee?.filtered ?? null;
+						hipRaw = angles.hip?.raw ?? null;
+						hipFiltered = angles.hip?.filtered ?? null;
+						ankleRaw = angles.ankle?.raw ?? null;
+						ankleFiltered = angles.ankle?.filtered ?? null;
+						heightAvailable = sample.hipY !== null && sample.torsoHeight !== null;
+						copyGate();
+						const runningAtFrame = session === 'running';
+						if (!runningAtFrame && preparation.armed) {
+							positionReady = canBegin && startingPositionReady(profile, sample);
+							if (positionReady) counter.update(sample);
+							else counter.suspend();
+							countdown?.update(positionReady, timestamp);
+						}
+						if (runningAtFrame && session === 'running') {
+							if (!recordingReady || !ready || !requiredAnglesReady || !requiredHeightReady) {
+								pauseExercise(
+									!recordingReady ? 'Movement recording unavailable'
+										: !ready || visibleMask !== requiredMask ? 'Required joints not visible'
+										: ankleExercise ? 'Ankle tracking unavailable'
+										: kneeFiltered === null ? 'Knee tracking unavailable'
+											: !requiredAnglesReady ? 'Hip tracking unavailable'
+												: 'Hip height unavailable'
+								);
+							} else {
+								counter.update(sample);
+								copyCounter();
+								if (onrecord && landmarks && worldLandmarks && !onrecord({
+									landmarks, worldLandmarks, timestamp,
+									elapsedMs: accumulatedMs + timestamp - runningSince,
+									phase, reps, cue: feedbackCue, side: currentSide, runId
+								})) pauseExercise('Movement recording buffer full');
+							}
 						}
 					}
 					if (handsFreeEnabled && !finished) {

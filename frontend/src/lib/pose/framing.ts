@@ -19,6 +19,8 @@ const FRAME_MARGIN = 0.04;
 const STABLE_MS = 500;
 const MAX_FRAME_GAP_MS = 500;
 
+export const TRACKING_DROPOUT_MS = 1000;
+
 export class FramingGate {
 	readonly joints: readonly RequiredJoint[];
 	readonly requiredMask: number;
@@ -26,6 +28,7 @@ export class FramingGate {
 	ready = false;
 	hasPose = false;
 	private visibleSince: number | null = null;
+	private lostSince: number | null = null;
 	private lastFrameAt: number | null = null;
 
 	constructor(exercise: ExerciseType, side: TrackedSide) {
@@ -54,6 +57,7 @@ export class FramingGate {
 		}
 		if (this.lastFrameAt !== null && timestamp - this.lastFrameAt > MAX_FRAME_GAP_MS) {
 			this.visibleSince = null;
+			this.lostSince ??= this.lastFrameAt;
 		}
 		this.lastFrameAt = timestamp;
 		this.hasPose = landmarks !== undefined && landmarks.length > 0;
@@ -74,15 +78,21 @@ export class FramingGate {
 		this.visibleMask = mask;
 		if (!this.hasPose || mask !== this.requiredMask) {
 			this.visibleSince = null;
-			this.ready = false;
+			this.lostSince ??= timestamp;
+			if (timestamp - this.lostSince > TRACKING_DROPOUT_MS) this.ready = false;
 			return;
 		}
+		if (this.lostSince !== null && timestamp - this.lostSince > TRACKING_DROPOUT_MS) {
+			this.ready = false;
+		}
+		this.lostSince = null;
 		this.visibleSince ??= timestamp;
-		this.ready = timestamp - this.visibleSince >= STABLE_MS;
+		if (!this.ready) this.ready = timestamp - this.visibleSince >= STABLE_MS;
 	}
 
 	reset() {
 		this.visibleSince = null;
+		this.lostSince = null;
 		this.lastFrameAt = null;
 		this.visibleMask = 0;
 		this.ready = false;

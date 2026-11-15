@@ -1,5 +1,5 @@
 import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
-import type { TrackedSide } from '#lib/pose/framing.js';
+import { TRACKING_DROPOUT_MS, type TrackedSide } from '#lib/pose/framing.js';
 import type { RepPhase, RepProfile } from '#lib/pose/rep-profile.js';
 
 export interface RepSample {
@@ -19,7 +19,7 @@ export interface RepMeasurement {
 	hold_ms: number;
 }
 
-const MAX_FRAME_GAP_MS = 500;
+const MAX_FRAME_GAP_MS = TRACKING_DROPOUT_MS;
 const MIN_TORSO_HEIGHT = 0.025;
 const CONFIGURATION_ERROR = 'The movement target does not leave a reliable rep range.';
 

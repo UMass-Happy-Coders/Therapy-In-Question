@@ -26,7 +26,8 @@ const MODEL_URLS = {
 };
 const FRAME_INTERVAL_MS = 40;
 const STALE_FRAME_MS = 500;
-const DRAW_CONFIDENCE = 0.35;
+const DRAW_CONFIDENCE = 0.5;
+const DRAW_SMOOTHING = 0.5;
 
 function drawable(point: NormalizedLandmark | undefined): point is NormalizedLandmark {
 	return point !== undefined &&
@@ -52,6 +53,7 @@ export function startPoseTracking(options: PoseTrackingOptions): () => void {
 	let lastInferenceAt = -Infinity;
 	let lastFreshAt = performance.now();
 	let invalidated = false;
+	let overlay: { x: number; y: number }[] = [];
 
 	function clearCanvas() {
 		context?.clearRect(0, 0, canvas.width, canvas.height);
@@ -137,29 +139,37 @@ export function startPoseTracking(options: PoseTrackingOptions): () => void {
 		clearCanvas();
 		const points = result.landmarks[0];
 		if (points !== undefined && points.length > 0) {
+			if (overlay.length !== points.length) {
+				overlay = points.map((point) => ({ x: point.x, y: point.y }));
+			}
+			for (let index = 0; index < points.length; index++) {
+				const weight = drawable(points[index]) ? DRAW_SMOOTHING : 1;
+				overlay[index].x += (points[index].x - overlay[index].x) * weight;
+				overlay[index].y += (points[index].y - overlay[index].y) * weight;
+			}
 			context.strokeStyle = lineColor;
 			context.lineWidth = Math.max(2, width / 480);
 			context.lineCap = 'round';
 			context.beginPath();
 			for (const connection of connections) {
-				const start = points[connection.start];
-				const end = points[connection.end];
-				if (!drawable(start) || !drawable(end)) continue;
-				context.moveTo(start.x * width, start.y * height);
-				context.lineTo(end.x * width, end.y * height);
+				if (!drawable(points[connection.start]) || !drawable(points[connection.end])) continue;
+				context.moveTo(overlay[connection.start].x * width, overlay[connection.start].y * height);
+				context.lineTo(overlay[connection.end].x * width, overlay[connection.end].y * height);
 			}
 			context.stroke();
 			context.fillStyle = pointColor;
 			context.beginPath();
 			const radius = Math.max(3, width / 240);
-			for (const point of points) {
-				if (!drawable(point)) continue;
-				const x = point.x * width;
-				const y = point.y * height;
+			for (let index = 0; index < points.length; index++) {
+				if (!drawable(points[index])) continue;
+				const x = overlay[index].x * width;
+				const y = overlay[index].y * height;
 				context.moveTo(x + radius, y);
 				context.arc(x, y, radius, 0, Math.PI * 2);
 			}
 			context.fill();
+		} else {
+			overlay = [];
 		}
 		invalidated = false;
 		onFrame(
