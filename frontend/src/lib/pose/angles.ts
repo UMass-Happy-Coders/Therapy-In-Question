@@ -63,6 +63,9 @@ export class JointAngleEstimator {
 	private readonly frame: JointAngleFrame = { knee: null, hip: null, ankle: null };
 	private lastTimestamp: number | null = null;
 	private lastHipInput: number | null = null;
+	private ankleNeutral: number | null = null;
+	private ankleNeutralAt = 0;
+	private ankleNeutralLocked = false;
 
 	constructor(side: TrackedSide, private readonly ankleOnly: boolean) {
 		this.indices = JOINT_INDICES[side];
@@ -98,11 +101,19 @@ export class JointAngleEstimator {
 				? anklePlantarFlexionAngle(knee, ankle, heel, toe) : null;
 			if (raw === null) {
 				this.ankleFilter.reset();
+				if (!this.ankleNeutralLocked) this.ankleNeutral = null;
 			} else {
 				const filtered = this.ankleFilter.filter(raw, timestampMs);
 				if (filtered !== null) {
-					this.ankleMeasurement.raw = raw;
-					this.ankleMeasurement.filtered = filtered;
+					if (!this.ankleNeutralLocked) {
+						this.ankleNeutral = this.ankleNeutral === null
+							? filtered
+							: this.ankleNeutral + (filtered - this.ankleNeutral) *
+								Math.min(1, (timestampMs - this.ankleNeutralAt) / 1000);
+						this.ankleNeutralAt = timestampMs;
+					}
+					this.ankleMeasurement.raw = raw - this.ankleNeutral!;
+					this.ankleMeasurement.filtered = filtered - this.ankleNeutral!;
 					this.frame.ankle = this.ankleMeasurement;
 				}
 			}
@@ -147,6 +158,10 @@ export class JointAngleEstimator {
 		return this.frame;
 	}
 
+	lockAnkleNeutral() {
+		this.ankleNeutralLocked = this.ankleNeutral !== null;
+	}
+
 	reset() {
 		this.kneeFilter.reset();
 		this.hipFilter.reset();
@@ -156,5 +171,6 @@ export class JointAngleEstimator {
 		this.frame.knee = null;
 		this.frame.hip = null;
 		this.frame.ankle = null;
+		if (!this.ankleNeutralLocked) this.ankleNeutral = null;
 	}
 }

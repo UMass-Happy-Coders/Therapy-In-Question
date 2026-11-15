@@ -185,8 +185,12 @@
 		) return false;
 		if (!fromGesture) resetHandRaise();
 		if (!runId) runId = crypto.randomUUID();
-		if (session === 'setup') counter.reset();
-		else counter.suspend();
+		if (session === 'setup') {
+			counter.reset();
+			angleEstimator.lockAnkleNeutral();
+		} else {
+			counter.suspend();
+		}
 		copyCounter();
 		runningSince = performance.now();
 		session = 'running';
@@ -274,6 +278,7 @@
 			const stop = startPoseTracking({
 				video: currentVideo,
 				canvas: currentCanvas,
+				model: exerciseType === 'seated_ankle_pumps' ? 'heavy' : 'lite',
 				onFrame(landmarks, worldLandmarks, timestamp) {
 					if (generation !== token) return;
 					captureAvailable = live && captureRunning(currentVideo);

@@ -10,6 +10,7 @@ export type TrackerStatus = 'loading' | 'tracking' | 'error';
 export interface PoseTrackingOptions {
 	video: HTMLVideoElement;
 	canvas: HTMLCanvasElement;
+	model: 'lite' | 'heavy';
 	onFrame: (
 		normalized: readonly NormalizedLandmark[] | undefined,
 		world: readonly Landmark[] | undefined,
@@ -19,8 +20,10 @@ export interface PoseTrackingOptions {
 }
 
 const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm';
-const MODEL_URL =
-	'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+const MODEL_URLS = {
+	lite: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+	heavy: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task'
+};
 const FRAME_INTERVAL_MS = 40;
 const STALE_FRAME_MS = 500;
 const DRAW_CONFIDENCE = 0.35;
@@ -203,7 +206,7 @@ export function startPoseTracking(options: PoseTrackingOptions): () => void {
 			const fileset = await vision.FilesetResolver.forVisionTasks(WASM_URL);
 			if (stopped) return;
 			const model = await vision.PoseLandmarker.createFromOptions(fileset, {
-				baseOptions: { modelAssetPath: MODEL_URL, delegate: 'CPU' },
+				baseOptions: { modelAssetPath: MODEL_URLS[options.model], delegate: 'CPU' },
 				runningMode: 'VIDEO',
 				numPoses: 1,
 				minPoseDetectionConfidence: 0.5,

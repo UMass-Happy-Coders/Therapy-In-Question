@@ -46,7 +46,7 @@
 		{/if}
 	</dl>
 	{#if ankleExercise}
-		<p class="mb-0 mt-3 text-sm">Zero is approximate neutral. Negative values indicate dorsiflexion.</p>
+		<p class="mb-0 mt-3 text-sm">Zero is your starting foot position. Negative values mean your toes moved toward your shin.</p>
 	{/if}
 	<details class="mt-5">
 		<summary class="cursor-pointer font-semibold">Raw measurements</summary>
