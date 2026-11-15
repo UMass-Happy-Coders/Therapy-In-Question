@@ -17,11 +17,11 @@
 	import { RecordingCountdown, startingPositionReady, type CountdownState } from '#lib/pose/recording-countdown.js';
 	import type { PoseCapture } from '#lib/pose/recording.js';
 	import type { ProgramExercise } from '#lib/programs.js';
-	import type { SetMeasurement } from '#lib/sessions.js';
+	import type { SetResult } from '#lib/sessions.js';
 
 	let { exercise, onfinish, finishLabel = 'Finish exercise', onrecord, recordingReady = true, sessionId, setOrdinal = 0 }: {
 		exercise: ProgramExercise;
-		onfinish?: (result: SetMeasurement) => void;
+		onfinish?: (result: SetResult) => void;
 		finishLabel?: string;
 		onrecord?: (frame: Omit<PoseCapture, 'setOrdinal' | 'exerciseId'>) => boolean;
 		recordingReady?: boolean;
@@ -279,7 +279,11 @@
 		counter.suspend();
 		copyCounter();
 		session = 'finished';
-		onfinish?.({ reps_completed: reps, elapsed_seconds: Math.round(elapsedMs) / 1000 });
+		onfinish?.({
+			reps_completed: reps,
+			elapsed_seconds: Math.round(elapsedMs) / 1000,
+			rep_metrics: counter.measurements.slice()
+		});
 	}
 
 	function selectSide(nextSide: TrackedSide) {
