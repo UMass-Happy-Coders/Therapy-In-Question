@@ -185,12 +185,9 @@
 		) return false;
 		if (!fromGesture) resetHandRaise();
 		if (!runId) runId = crypto.randomUUID();
-		if (session === 'setup') {
-			counter.reset();
-			angleEstimator.lockAnkleNeutral();
-		} else {
-			counter.suspend();
-		}
+		if (session === 'setup') counter.reset();
+		else counter.suspend();
+		angleEstimator.lockAnkleNeutral();
 		copyCounter();
 		runningSince = performance.now();
 		session = 'running';
