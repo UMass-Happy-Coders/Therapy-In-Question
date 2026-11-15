@@ -102,20 +102,24 @@
 	}
 </script>
 
-<main id="main-content" class="mx-auto max-w-[1440px] px-10 py-10">
-	<a href="/patient" class="mb-5 inline-block">Back to programs</a>
+<main id="main-content" class="mx-auto max-w-[1440px] px-10 py-7">
+	<a href="/patient" class="mb-5 inline-flex min-h-11 items-center text-sm">Back to programs</a>
 	{#if session.status === 'completed'}
-		<h1>Session summary</h1>
-		<p class="mb-8 text-lg">{session.program.name} - {session.session_date} (UTC)</p>
-		<dl class="mb-10 grid max-w-4xl grid-cols-3 gap-8">
-			<div><dt>Sets logged</dt><dd class="m-0 text-3xl font-semibold">{session.sets.length} / {plan.length}</dd></div>
-			<div><dt>Reps recorded</dt><dd class="m-0 text-3xl font-semibold">{recordedReps} / {plannedReps}</dd></div>
-			<div><dt>Active time</dt><dd class="m-0 text-3xl font-semibold tabular-nums">{activeTime(activeSeconds)}</dd></div>
+		<div class="mb-7 flex items-center justify-between gap-8">
+			<div>
+				<h1 class="mb-2">Session summary</h1>
+				<p class="mb-0">{session.program.name} - {session.session_date} (UTC)</p>
+			</div>
+			{#if recording.totals && recording.totals.frames > 0}
+				<a href={`/patient/session/${session.id}/playback`} class="button min-h-12">Play skeleton recording</a>
+			{/if}
+		</div>
+		<dl class="mb-7 grid grid-cols-3 gap-8 rounded-lg bg-[var(--ash-grey)] px-7 py-5">
+			<div><dt class="mb-1 text-sm">Sets logged</dt><dd class="m-0 text-3xl font-semibold tabular-nums">{session.sets.length} / {plan.length}</dd></div>
+			<div><dt class="mb-1 text-sm">Reps recorded</dt><dd class="m-0 text-3xl font-semibold tabular-nums">{recordedReps} / {plannedReps}</dd></div>
+			<div><dt class="mb-1 text-sm">Active time</dt><dd class="m-0 text-3xl font-semibold tabular-nums">{activeTime(activeSeconds)}</dd></div>
 		</dl>
 		<MovementRecording state={recording} onretry={retryRecording} />
-		{#if recording.totals && recording.totals.frames > 0}
-			<a href={`/patient/session/${session.id}/playback`} class="button mb-8">Play skeleton recording</a>
-		{/if}
 		<table class="w-full border-collapse text-left">
 			<caption class="mb-5 text-left text-xl font-semibold">Saved set logs</caption>
 			<thead class="bg-[var(--ash-grey)]">
@@ -143,22 +147,26 @@
 			<SessionMetrics {session} />
 		</div>
 	{:else}
-		<div class="mb-6 flex items-end justify-between gap-8">
+		<div class="mb-5 flex items-center justify-between gap-10">
 			<div>
-				<h1>{session.program.name}</h1>
-				<p class="mb-0 text-lg">{step.exercise.name} - Set {step.set_number} of {step.exercise.sets}</p>
+				<h1 class="mb-2">{step.exercise.name}</h1>
+				<p class="mb-0">{session.program.name} - Set {step.set_number} of {step.exercise.sets}</p>
 			</div>
-			<p class="mb-0">{session.sets.length} of {plan.length} sets logged</p>
+			<div class="w-60 shrink-0">
+				<p class="mb-2 text-sm">{session.sets.length} of {plan.length} sets logged</p>
+				<progress aria-label="Sets logged" value={session.sets.length} max={plan.length} class="block h-2 w-full accent-[var(--chocolate-plum)]">{session.sets.length} / {plan.length}</progress>
+			</div>
 		</div>
-		<dl class="mb-6 grid max-w-4xl grid-cols-3 gap-6">
-			<div><dt>Target reps</dt><dd class="m-0 text-lg font-semibold">{step.exercise.reps}</dd></div>
-			<div><dt>{step.exercise.target_label}</dt><dd class="m-0 text-lg font-semibold">{step.exercise.target_angle} degrees</dd></div>
-			<div><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} ${step.exercise.hold_seconds === 1 ? 'second' : 'seconds'}` : 'No hold'}</dd></div>
+		<dl class="mb-7 flex items-center gap-12 text-sm">
+			<div class="flex items-baseline gap-3"><dt>Target reps</dt><dd class="m-0 text-lg font-semibold tabular-nums">{step.exercise.reps}</dd></div>
+			<div class="flex items-baseline gap-3"><dt>{step.exercise.target_label}</dt><dd class="m-0 text-lg font-semibold tabular-nums">{step.exercise.target_angle} degrees</dd></div>
+			<div class="flex items-baseline gap-3"><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} ${step.exercise.hold_seconds === 1 ? 'second' : 'seconds'}` : 'No hold'}</dd></div>
 		</dl>
 		{#if measurement}
-			<section aria-labelledby="set-log-heading" class="max-w-4xl rounded-lg bg-[var(--surface)] p-8">
-				<h2 id="set-log-heading">Log set {step.set_number}</h2>
-				<dl class="mb-8 grid grid-cols-2 gap-6">
+			<section aria-labelledby="set-log-heading" class="mx-auto max-w-5xl rounded-lg bg-[var(--surface)] p-8">
+				<h2 id="set-log-heading" class="mb-2 text-2xl">Log set {step.set_number}</h2>
+				<p class="mb-6">How did this set feel? Your scores are saved with your movement data.</p>
+				<dl class="mb-8 grid grid-cols-2 gap-6 rounded-lg bg-[var(--ash-grey)] p-5">
 					<div><dt>Reps recorded</dt><dd class="m-0 text-2xl font-semibold">{measurement.reps_completed} / {step.exercise.reps}</dd></div>
 					<div><dt>Active time</dt><dd class="m-0 text-2xl font-semibold tabular-nums">{activeTime(measurement.elapsed_seconds)}</dd></div>
 				</dl>
@@ -216,7 +224,7 @@
 							{#if saveStatus === 409}<a href={`/patient/session/${session.id}`} data-sveltekit-reload class="mb-5 inline-block">Reload session</a>{/if}
 							{#if saveStatus === 401}<a href="/login" class="mb-5 inline-block">Sign in</a>{/if}
 						{/if}
-						<button type="submit">{pending ? 'Saving set...' : session.sets.length + 1 === plan.length ? 'Save set and finish' : 'Save set and continue'}</button>
+						<button type="submit" class="min-h-14 min-w-60 text-lg">{pending ? 'Saving set...' : session.sets.length + 1 === plan.length ? 'Save set and finish' : 'Save set and continue'}</button>
 					</fieldset>
 				</form>
 			</section>

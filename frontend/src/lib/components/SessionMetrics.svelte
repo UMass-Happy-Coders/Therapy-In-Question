@@ -60,14 +60,14 @@
 
 <section aria-labelledby="session-metrics-heading" class="mb-10">
 	<h2 id="session-metrics-heading" class="mb-2">Saved measurements</h2>
-	<p class="mb-6 text-sm">Camera estimates stored per rep. Totals are read from daily and weekly aggregates and include your other sessions in the same period.</p>
+	<p class="mb-6 text-sm">Camera estimates, not clinical measurements. Daily and weekly totals include your other sessions in the same period.</p>
 	{#if errorMessage}
 		<p role="alert" class="mb-3 text-[var(--error)]">{errorMessage}</p>
 		<button class="button-secondary" onclick={load} disabled={loading}>Retry measurements</button>
 	{:else if metrics === null}
 		<p role="status" class="mb-0">Loading saved measurements...</p>
 	{:else}
-		<div class="mb-10 grid grid-cols-2 gap-8">
+		<div class="mb-6 grid grid-cols-2 gap-6">
 			{#each periods as period (period.label)}
 				<section aria-label={period.label} class="rounded-lg bg-[var(--surface)] p-6">
 					<h3 class="mb-4 text-lg font-semibold">{period.label}</h3>
@@ -108,8 +108,10 @@
 			{/each}
 		</div>
 		{#if metrics.reps.length}
-			<table class="w-full border-collapse text-left">
-				<caption class="mb-5 text-left text-xl font-semibold">Rep measurements in this session</caption>
+			<details class="rounded-lg bg-[var(--surface)] p-5">
+				<summary class="cursor-pointer text-lg font-semibold">Rep measurements in this session</summary>
+			<table class="mt-5 w-full border-collapse text-left text-sm">
+				<caption class="sr-only">Saved rep measurements</caption>
 				<thead class="bg-[var(--ash-grey)]">
 					<tr>
 						<th scope="col" class="p-4">Exercise</th><th scope="col" class="p-4">Set</th>
@@ -135,6 +137,7 @@
 					{/each}
 				</tbody>
 			</table>
+			</details>
 		{:else}
 			<p class="mb-0">No counted reps were saved for this session.</p>
 		{/if}
