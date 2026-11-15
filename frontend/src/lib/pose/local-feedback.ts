@@ -10,12 +10,13 @@ export function movementCue(
 	correction: string | null
 ): string {
 	const anklePumps = exercise.exercise_type === 'seated_ankle_pumps';
-	if (state === 'setup') return 'Frame your body, then start the exercise.';
+	const fingerBends = exercise.exercise_type === 'seated_index_finger_bends';
+	if (state === 'setup') return fingerBends ? 'Sit comfortably and show one open hand to the camera.' : 'Frame your body, then start the exercise.';
 	if (state === 'finished') return 'Set finished.';
 	if (state === 'paused') return correction ? `Paused: ${correction}.` : 'Exercise paused. Resume when you are ready.';
 	if (correction === 'Knee bent') return 'Keep your knee straight for this rep.';
 	if (correction === 'Return to rest' || correction === 'Return to seated rest') {
-		return anklePumps
+		return fingerBends ? 'Gently straighten your index finger before the next rep.' : anklePumps
 			? 'Return your foot toward its starting position before the next rep.'
 			: 'Return to your starting position before the next rep.';
 	}
@@ -23,6 +24,14 @@ export function movementCue(
 	if (correction === 'Stand fully') return 'Complete the standing position before returning.';
 	if (correction) return `${correction}.`;
 	if (reps >= exercise.reps) return 'Set target reached. End the set when you are ready.';
+	if (fingerBends) {
+		if (phase === 'rest') return 'Gently bend your index finger when you are ready.';
+		if (phase === 'hold' && holdElapsedMs < exercise.hold_seconds * 1000) {
+			return `Hold comfortably for ${exercise.hold_seconds} ${exercise.hold_seconds === 1 ? 'second' : 'seconds'}, then gently straighten your index finger.`;
+		}
+		if (phase === 'hold' || phase === 'lower') return 'Gently straighten your index finger.';
+		return `Bend the middle joint of your index finger toward your assigned ${exercise.target_angle}-degree target. Do not force it.`;
+	}
 	if (anklePumps) {
 		if (phase === 'rest') return 'Start your next ankle pump when you are ready.';
 		if (phase === 'hold' && holdElapsedMs < exercise.hold_seconds * 1000) {

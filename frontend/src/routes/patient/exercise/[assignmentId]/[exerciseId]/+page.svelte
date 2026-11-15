@@ -1,8 +1,10 @@
 <script lang="ts">
 	import PoseSetup from '#lib/components/PoseSetup.svelte';
+	import HandSetup from '#lib/components/HandSetup.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+	const ExerciseSetup = $derived(data.exercise.exercise_type === 'seated_index_finger_bends' ? HandSetup : PoseSetup);
 </script>
 
 <svelte:head>
@@ -34,6 +36,6 @@
 		</div>
 	</dl>
 	{#key data.exercise.id}
-		<PoseSetup exercise={data.exercise} />
+		<ExerciseSetup exercise={data.exercise} />
 	{/key}
 </main>

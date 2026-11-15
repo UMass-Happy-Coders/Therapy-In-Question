@@ -17,7 +17,9 @@
 	} = $props();
 
 	const phaseLabel = $derived(
-		exerciseType === 'seated_ankle_pumps' && phase === 'raise'
+		exerciseType === 'seated_index_finger_bends' && phase === 'raise' ? 'Bend'
+			: exerciseType === 'seated_index_finger_bends' && phase === 'lower' ? 'Straighten'
+			: exerciseType === 'seated_ankle_pumps' && phase === 'raise'
 			? 'Point'
 			: exerciseType === 'seated_ankle_pumps' && phase === 'lower'
 				? 'Return'

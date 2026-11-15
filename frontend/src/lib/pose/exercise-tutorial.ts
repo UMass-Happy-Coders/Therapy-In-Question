@@ -20,6 +20,15 @@ export function exerciseWalkthrough(
 	const camera = 'Place the camera to your side. Keep your full body, including your head and torso, visible throughout the movement. Keep the leg you are exercising clear of furniture and the other leg.';
 
 	switch (exercise.exercise_type) {
+		case 'seated_index_finger_bends':
+			return {
+				steps: [
+					{ title: 'Sit and open your hand', instruction: 'Stay seated with your forearm supported on a table. Hold one hand up with your index finger gently straight and your wrist still.', pose: 'start' },
+					{ title: 'Gently bend your index finger', instruction: `Bend the middle joint of your index finger toward your assigned ${exercise.target_angle}-degree target. Keep your hand still and never force the movement.${hold}`, pose: 'target' },
+					{ title: 'Straighten with control', instruction: 'Gently straighten your index finger to its starting position before the next repetition. Stop if pain increases.', pose: 'return' }
+				],
+				camera: 'Stay seated. Place your whole hand close to the camera, with your palm facing it at a slight angle so the index finger joints stay visible. Keep your wrist and all fingertips in frame, with even lighting. No full-body view is needed.'
+			};
 		case 'seated_knee_extension':
 			return {
 				steps: [

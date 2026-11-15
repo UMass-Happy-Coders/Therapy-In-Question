@@ -146,7 +146,8 @@ export class MovementRecorder {
 		}
 		const boundary = input.reps > this.lastRep;
 		if (input.timestamp - this.lastSampleAt < SAMPLE_INTERVAL_MS && !boundary) return true;
-		if (input.landmarks.length !== 33 || input.worldLandmarks.length !== 33 ||
+		if ((input.landmarks.length !== 33 && input.landmarks.length !== 21) ||
+			input.worldLandmarks.length !== input.landmarks.length ||
 			!input.landmarks.every(validPoint) || !input.worldLandmarks.every(validPoint)) return true;
 		if (!this.partial) {
 			this.partial = {

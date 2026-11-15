@@ -18,12 +18,13 @@ export function createRepProfile(
 ): RepProfile {
 	const legRaise = exercise.exercise_type === 'straight_leg_raise';
 	const anklePumps = exercise.exercise_type === 'seated_ankle_pumps';
-	const restEnter = anklePumps
+	const fingerBends = exercise.exercise_type === 'seated_index_finger_bends';
+	const restEnter = fingerBends ? 12 : anklePumps
 		? Math.min(5, exercise.target_angle * 0.2)
 		: legRaise
 			? Math.min(10, exercise.target_angle * 0.2)
 			: Math.min(100, exercise.target_angle - 20);
-	const restExit = restEnter + (anklePumps ? 4 : legRaise ? 5 : 8);
+	const restExit = restEnter + (fingerBends ? 6 : anklePumps ? 4 : legRaise ? 5 : 8);
 	const topEnter = exercise.target_angle - 3;
 	const topExit = exercise.target_angle - (anklePumps ? 7 : 8);
 	return {

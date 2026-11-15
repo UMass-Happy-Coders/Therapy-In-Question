@@ -38,6 +38,8 @@
 				<li>Seated knee extension</li>
 				<li>Straight leg raise</li>
 				<li>Sit-to-stand</li>
+				<li>Seated ankle pumps</li>
+				<li>Seated index finger bends</li>
 			</ul>
 		</aside>
 	</section>

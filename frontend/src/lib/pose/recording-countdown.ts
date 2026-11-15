@@ -125,8 +125,10 @@ export class RecordingCountdown {
 
 export function startingPositionReady(profile: RepProfile, sample: RepSample): boolean {
 	if (profile.configurationError !== null || !Number.isFinite(profile.restEnter)) return false;
-	const { knee, hip, ankle, hipY, torsoHeight } = sample;
+	const { knee, hip, ankle, finger, hipY, torsoHeight } = sample;
 	switch (profile.exercise) {
+		case 'seated_index_finger_bends':
+			return finger !== null && Number.isFinite(finger) && finger >= 0 && finger <= profile.restEnter;
 		case 'seated_ankle_pumps':
 			return ankle !== null && Number.isFinite(ankle) && ankle <= profile.restEnter;
 		case 'seated_knee_extension':
