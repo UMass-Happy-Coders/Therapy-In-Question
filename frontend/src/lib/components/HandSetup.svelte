@@ -160,7 +160,7 @@
 		stopTracker?.();
 		stopTracker = undefined;
 		const stream = video?.srcObject;
-		if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
+		if (typeof MediaStream !== 'undefined' && stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
 		if (video) video.srcObject = null;
 		live = false;
 	}
