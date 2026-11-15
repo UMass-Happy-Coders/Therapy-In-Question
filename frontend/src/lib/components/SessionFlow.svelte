@@ -136,10 +136,14 @@
 			</tbody>
 		</table>
 	{:else}
-		<h1>{session.program.name}</h1>
-		<p class="mb-6 text-lg">{step.exercise.name} - Set {step.set_number} of {step.exercise.sets}</p>
-		<p class="mb-6">{session.sets.length} of {plan.length} sets logged</p>
-		<dl class="mb-8 grid max-w-4xl grid-cols-3 gap-6">
+		<div class="mb-6 flex items-end justify-between gap-8">
+			<div>
+				<h1>{session.program.name}</h1>
+				<p class="mb-0 text-lg">{step.exercise.name} - Set {step.set_number} of {step.exercise.sets}</p>
+			</div>
+			<p class="mb-0">{session.sets.length} of {plan.length} sets logged</p>
+		</div>
+		<dl class="mb-6 grid max-w-4xl grid-cols-3 gap-6">
 			<div><dt>Target reps</dt><dd class="m-0 text-lg font-semibold">{step.exercise.reps}</dd></div>
 			<div><dt>{step.exercise.target_label}</dt><dd class="m-0 text-lg font-semibold">{step.exercise.target_angle} degrees</dd></div>
 			<div><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} seconds` : 'No hold'}</dd></div>
@@ -191,6 +195,8 @@
 			{#key session.sets.length}
 				<PoseSetup
 					exercise={step.exercise}
+					sessionId={session.id}
+					setOrdinal={session.sets.length}
 					finishLabel="End set"
 					recordingReady={recording.ready}
 					onrecord={(frame) => recorder.capture({ ...frame, setOrdinal: session.sets.length, exerciseId: step.exercise.id })}

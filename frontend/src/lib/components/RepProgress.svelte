@@ -5,14 +5,12 @@
 		reps,
 		phase,
 		holdElapsedMs,
-		holdMs,
-		cue
+		holdMs
 	}: {
 		reps: number;
 		phase: RepPhase;
 		holdElapsedMs: number;
 		holdMs: number;
-		cue: string | null;
 	} = $props();
 </script>
 
@@ -44,7 +42,4 @@
 			</dd>
 		</div>
 	</dl>
-	{#if cue}
-		<p role="status" class="mb-0 mt-4 font-semibold text-[var(--error)]">{cue}</p>
-	{/if}
 </section>

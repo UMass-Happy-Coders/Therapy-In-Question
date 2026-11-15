@@ -64,58 +64,18 @@
 	});
 </script>
 
-<div class="webcam">
-	<video bind:this={video} playsinline muted aria-label="Your camera preview"></video>
+<div class="relative aspect-video max-h-[44vh] min-h-48 w-full max-w-[960px] overflow-hidden rounded-lg bg-[var(--camera-background)]">
+	<video bind:this={video} playsinline muted aria-label="Your camera preview" class="block h-full w-full -scale-x-100 object-contain"></video>
 
 	{#if !live}
-		<div class="overlay">
+		<div class="absolute inset-0 grid place-content-center gap-3 text-center text-[var(--surface)]">
 			<button onclick={start} disabled={!ready || pending}>
 				{pending ? 'Starting camera...' : 'Start camera'}
 			</button>
-			{#if error}<p class="error" role="alert">{error}</p>{/if}
+			{#if error}<p class="max-w-[40ch] text-[var(--camera-error)]" role="alert">{error}</p>{/if}
 		</div>
 	{:else}
-		<button class="stop" onclick={stop}>Stop camera</button>
+		<button class="absolute right-3 top-3 z-10" onclick={stop}>Stop camera</button>
 	{/if}
 </div>
 
-<style>
-	.webcam {
-		position: relative;
-		width: 100%;
-		max-width: 960px;
-		aspect-ratio: 16 / 9;
-		min-height: 12rem;
-		background: var(--camera-background);
-		border-radius: 8px;
-		overflow: hidden;
-	}
-
-	video {
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-		transform: scaleX(-1);
-	}
-
-	.overlay {
-		position: absolute;
-		inset: 0;
-		display: grid;
-		place-content: center;
-		gap: 0.75rem;
-		text-align: center;
-		color: var(--surface);
-	}
-
-	.error {
-		color: var(--camera-error);
-		max-width: 40ch;
-	}
-
-	.stop {
-		position: absolute;
-		top: 0.75rem;
-		right: 0.75rem;
-	}
-</style>

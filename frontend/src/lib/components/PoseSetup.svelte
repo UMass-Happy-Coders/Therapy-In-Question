@@ -4,22 +4,26 @@
 	import JointAngles from '#lib/components/JointAngles.svelte';
 	import RepProgress from '#lib/components/RepProgress.svelte';
 	import HandRaiseControls from '#lib/components/HandRaiseControls.svelte';
+	import LiveFeedback from '#lib/components/LiveFeedback.svelte';
 	import { JointAngleEstimator } from '#lib/pose/angles.js';
 	import { FramingGate, type RequiredJoint, type TrackedSide } from '#lib/pose/framing.js';
 	import { HandRaiseGesture, type HandRaiseState } from '#lib/pose/hand-raise.js';
 	import { RepCounter, makeRepSample } from '#lib/pose/rep-counter.js';
 	import { createRepProfile, type RepPhase } from '#lib/pose/rep-profile.js';
+	import { movementCue } from '#lib/pose/local-feedback.js';
 	import { startPoseTracking, type TrackerStatus } from '#lib/pose/tracker.js';
 	import type { PoseCapture } from '#lib/pose/recording.js';
 	import type { ProgramExercise } from '#lib/programs.js';
 	import type { SetMeasurement } from '#lib/sessions.js';
 
-	let { exercise, onfinish, finishLabel = 'Finish exercise', onrecord, recordingReady = true }: {
+	let { exercise, onfinish, finishLabel = 'Finish exercise', onrecord, recordingReady = true, sessionId, setOrdinal = 0 }: {
 		exercise: ProgramExercise;
 		onfinish?: (result: SetMeasurement) => void;
 		finishLabel?: string;
 		onrecord?: (frame: Omit<PoseCapture, 'setOrdinal' | 'exerciseId'>) => boolean;
 		recordingReady?: boolean;
+		sessionId?: string;
+		setOrdinal?: number;
 	} = $props();
 	const profile = untrack(() => createRepProfile(exercise));
 	const counter = untrack(() => new RepCounter(profile));
@@ -64,6 +68,7 @@
 	let runId = '';
 
 	const finished = $derived(session === 'finished');
+	const feedbackCue = $derived(movementCue(exercise, session, phase, reps, holdElapsedMs, repCue));
 	const requiredAnglesReady = $derived(
 		kneeFiltered !== null &&
 		(exercise.exercise_type === 'seated_knee_extension' || hipFiltered !== null)
@@ -298,7 +303,7 @@
 							if (onrecord && landmarks && worldLandmarks && !onrecord({
 								landmarks, worldLandmarks, timestamp,
 								elapsedMs: accumulatedMs + timestamp - runningSince,
-								phase, reps, cue: repCue, side: currentSide, runId
+								phase, reps, cue: feedbackCue, side: currentSide, runId
 							})) pauseExercise('Movement recording buffer full');
 						}
 					}
@@ -358,12 +363,22 @@
 				class="pointer-events-none absolute inset-0 h-full w-full -scale-x-100 object-contain"
 			></canvas>
 		</section>
+		<LiveFeedback
+			{sessionId}
+			{setOrdinal}
+			running={session === 'running'}
+			{finished}
+			cue={feedbackCue}
+			corrective={repCue !== null || reps >= exercise.reps}
+			{reps}
+			{phase}
+			{elapsedMs}
+		/>
 		<RepProgress
 			{reps}
 			{phase}
 			{holdElapsedMs}
 			holdMs={exercise.hold_seconds * 1000}
-			cue={session === 'running' || session === 'paused' ? repCue : null}
 		/>
 		<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} />
 	</div>
