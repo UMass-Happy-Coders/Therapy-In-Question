@@ -148,7 +148,6 @@
 			<div><dt>{step.exercise.target_label}</dt><dd class="m-0 text-lg font-semibold">{step.exercise.target_angle} degrees</dd></div>
 			<div><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} ${step.exercise.hold_seconds === 1 ? 'second' : 'seconds'}` : 'No hold'}</dd></div>
 		</dl>
-		<MovementRecording state={recording} onretry={retryRecording} />
 		{#if measurement}
 			<section aria-labelledby="set-log-heading" class="max-w-4xl rounded-lg bg-[var(--surface)] p-8">
 				<h2 id="set-log-heading">Log set {step.set_number}</h2>
@@ -204,5 +203,8 @@
 				/>
 			{/key}
 		{/if}
+		<div class="mt-8">
+			<MovementRecording state={recording} onretry={retryRecording} />
+		</div>
 	{/if}
 </main>

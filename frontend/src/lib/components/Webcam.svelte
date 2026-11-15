@@ -4,9 +4,10 @@
 	interface Props {
 		video?: HTMLVideoElement;
 		live?: boolean;
+		autostart?: boolean;
 	}
 
-	let { video = $bindable(), live = $bindable(false) }: Props = $props();
+	let { video = $bindable(), live = $bindable(false), autostart = false }: Props = $props();
 
 	let stream: MediaStream | null = null;
 	let error = $state('');
@@ -16,6 +17,7 @@
 
 	onMount(() => {
 		ready = true;
+		if (autostart) void start();
 	});
 
 	async function start() {

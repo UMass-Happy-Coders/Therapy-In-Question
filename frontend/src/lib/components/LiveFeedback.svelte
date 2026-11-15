@@ -3,10 +3,11 @@
 	import { FeedbackChannel, type FeedbackState } from '#lib/pose/live-feedback.js';
 	import type { RepPhase } from '#lib/pose/rep-profile.js';
 
-	let { sessionId, setOrdinal, running, finished, cue, corrective, reps, phase, elapsedMs }: {
+	let { sessionId, setOrdinal, running, preparing, finished, cue, corrective, reps, phase, elapsedMs }: {
 		sessionId?: string;
 		setOrdinal: number;
 		running: boolean;
+		preparing: boolean;
 		finished: boolean;
 		cue: string;
 		corrective: boolean;
@@ -31,6 +32,7 @@
 	let lastEncouragement = '';
 
 	const active = $derived(running && !finished && visible);
+	const localActive = $derived((running || preparing) && !finished && visible);
 	const connectionText = $derived(
 		finished ? 'Set finished.' : !visible ? 'Paused while this page is hidden.' : !running ? 'Start or resume this set to connect.' :
 		feedback.status === 'connecting' ? 'Connecting to encouragement...' :
@@ -143,7 +145,7 @@
 	});
 
 	$effect(() => {
-		const canSpeak = speechAvailable && spokenEnabled && active;
+		const canSpeak = speechAvailable && spokenEnabled && localActive;
 		const text = cue;
 		const priority = corrective;
 		untrack(() => {
@@ -192,7 +194,7 @@
 		</label>
 		{#if spokenEnabled}
 			<p role="status" class={`mb-0 mt-1 text-sm${speechFailed ? ' text-[var(--error)]' : ''}`}>
-				{!active ? 'Spoken cues are paused.' : speechStatus || 'Waiting for the next movement cue.'}
+				{!localActive ? 'Spoken cues are paused.' : speechStatus || 'Waiting for the next movement cue.'}
 			</p>
 		{/if}
 	{/if}
