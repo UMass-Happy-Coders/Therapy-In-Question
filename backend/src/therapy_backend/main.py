@@ -10,6 +10,9 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from .auth import router as auth_router
 from .db import engine, mongo
+from .feedback import router as feedback_router
+from .gemini import client as gemini_client
+from .metrics import router as metrics_router
 from .messages import router as messages_router
 from .programs import router as programs_router
 from .recordings import router as recordings_router
@@ -22,9 +25,16 @@ HEALTH_TIMEOUT_S = 3.0
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    yield
-    await mongo.close()
-    await engine.dispose()
+    try:
+        yield
+    finally:
+        try:
+            await gemini_client.aio.aclose()
+        finally:
+            try:
+                await mongo.close()
+            finally:
+                await engine.dispose()
 
 
 app = FastAPI(
@@ -40,6 +50,8 @@ api.include_router(messages_router)
 api.include_router(programs_router)
 api.include_router(sessions_router)
 api.include_router(recordings_router)
+api.include_router(feedback_router)
+api.include_router(metrics_router)
 
 
 @app.middleware("http")

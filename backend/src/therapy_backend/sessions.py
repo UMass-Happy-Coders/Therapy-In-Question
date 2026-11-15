@@ -1,15 +1,23 @@
 from datetime import UTC, date, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
 from .auth import UserResponse, require_csrf_header
 from .db import DB
-from .models import ExerciseSession, ExerciseSessionSet, Program, ProgramAssignment, User
+from .models import (
+    ExerciseSession,
+    ExerciseSessionSet,
+    Program,
+    ProgramAssignment,
+    RepMetric,
+    SetMetric,
+    User,
+)
 from .programs import (
     CurrentPatient,
     ProgramDetailResponse,
@@ -26,7 +34,27 @@ class SessionStartRequest(BaseModel):
     assignment_id: UUID
 
 
-class SessionSetRequest(BaseModel):
+class RepMeasurement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    rep_number: Annotated[int, Field(strict=True, ge=1, le=1000)]
+    start_angle: Annotated[
+        float, Field(strict=True, ge=-180, le=360, allow_inf_nan=False)
+    ]
+    peak_angle: Annotated[
+        float, Field(strict=True, ge=-180, le=360, allow_inf_nan=False)
+    ]
+    duration_ms: Annotated[int, Field(strict=True, ge=1, le=600000)]
+    hold_ms: Annotated[int, Field(strict=True, ge=0, le=60000)]
+
+    @model_validator(mode="after")
+    def require_forward_motion(self) -> Self:
+        if not 0 <= self.peak_angle - self.start_angle <= 360:
+            raise ValueError("peak_angle must be 0 to 360 degrees above start_angle")
+        return self
+
+
+class SessionSetLog(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ordinal: Annotated[int, Field(strict=True, ge=0, le=119)]
@@ -47,7 +75,19 @@ class SessionSetRequest(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
-class SessionSetResponse(SessionSetRequest):
+class SessionSetRequest(SessionSetLog):
+    rep_metrics: Annotated[list[RepMeasurement], Field(strict=True, max_length=1000)]
+
+    @model_validator(mode="after")
+    def require_one_measurement_per_rep(self) -> Self:
+        if [entry.rep_number for entry in self.rep_metrics] != list(
+            range(1, self.reps_completed + 1)
+        ):
+            raise ValueError("rep_metrics must list every completed rep in order")
+        return self
+
+
+class SessionSetResponse(SessionSetLog):
     recorded_at: datetime
 
 
@@ -239,7 +279,7 @@ async def record_set(
             )
         ).scalars()
     )
-    values = body.model_dump()
+    values = body.model_dump(exclude={"rep_metrics"})
     if body.ordinal < len(logged_sets):
         existing = logged_sets[body.ordinal]
         if any(getattr(existing, field) != value for field, value in values.items()):
@@ -253,14 +293,14 @@ async def record_set(
         raise HTTPException(status_code=409, detail="Record the next prescribed set in order.")
     program = ProgramDetailResponse.model_validate(session.program_snapshot)
     prescribed_sets = [
-        (exercise.id, set_number)
+        (exercise, set_number)
         for exercise in program.exercises
         for set_number in range(1, exercise.sets + 1)
     ]
-    if body.ordinal >= len(prescribed_sets) or prescribed_sets[body.ordinal] != (
-        body.exercise_id,
-        body.set_number,
-    ):
+    if body.ordinal >= len(prescribed_sets):
+        raise HTTPException(status_code=409, detail="Set does not match the prescription.")
+    exercise, set_number = prescribed_sets[body.ordinal]
+    if (exercise.id, set_number) != (body.exercise_id, body.set_number):
         raise HTTPException(status_code=409, detail="Set does not match the prescription.")
     recorded_at = datetime.now(UTC)
     logged_set = ExerciseSessionSet(
@@ -270,6 +310,39 @@ async def record_set(
     )
     db.add(logged_set)
     logged_sets.append(logged_set)
+    metric_keys = {
+        "session_id": session.id,
+        "set_ordinal": body.ordinal,
+        "recorded_at": recorded_at,
+        "clinic_id": session.clinic_id,
+        "patient_id": session.patient_id,
+        "exercise_id": exercise.id,
+        "exercise_type": exercise.exercise_type,
+    }
+    db.add(
+        SetMetric(
+            **metric_keys,
+            reps_completed=body.reps_completed,
+            reps_prescribed=exercise.reps,
+            elapsed_seconds=body.elapsed_seconds,
+            pain=body.pain,
+            difficulty=body.difficulty,
+            comfort=body.comfort,
+        )
+    )
+    db.add_all(
+        RepMetric(
+            **metric_keys,
+            rep_number=entry.rep_number,
+            start_angle=entry.start_angle,
+            peak_angle=entry.peak_angle,
+            range_of_motion=entry.peak_angle - entry.start_angle,
+            target_angle=exercise.target_angle,
+            duration_ms=entry.duration_ms,
+            hold_ms=entry.hold_ms,
+        )
+        for entry in body.rep_metrics
+    )
     if len(logged_sets) == len(prescribed_sets):
         session.status = "completed"
         session.completed_at = recorded_at

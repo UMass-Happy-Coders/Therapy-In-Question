@@ -2,7 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-ExerciseType = Literal["seated_knee_extension", "straight_leg_raise", "sit_to_stand"]
+ExerciseType = Literal[
+    "seated_knee_extension", "straight_leg_raise", "sit_to_stand", "seated_ankle_pumps"
+]
 
 
 class ExerciseDefinition(BaseModel):
@@ -42,6 +44,18 @@ EXERCISES = (
         target_min=90,
         target_max=180,
         target_default=170,
+    ),
+    ExerciseDefinition(
+        id="seated_ankle_pumps",
+        name="Seated ankle pumps",
+        description=(
+            "Seated with your leg supported and foot free to move, point your toes "
+            "away, then return. Only use if assigned by your therapist."
+        ),
+        target_label="Ankle plantar flexion",
+        target_min=15,
+        target_max=60,
+        target_default=25,
     ),
 )
 EXERCISE_BY_ID = {exercise.id: exercise for exercise in EXERCISES}
