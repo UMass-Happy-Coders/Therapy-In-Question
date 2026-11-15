@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="448" height="96" viewBox="0 0 448 96" fill="none">
+  <title>Therapy in Question</title>
+  <g transform="translate(8 16)">
+    <path d="M18 21C18 13.8 24.2 9 32 9C40.3 9 46 14.1 46 21.5C46 28 42 31.5 36.5 35L31 39V43" stroke="#654c4f" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="43" cy="29" r="5" fill="#b26e63"/>
+    <circle cx="31" cy="55" r="4.5" fill="#654c4f"/>
+  </g>
+  <text x="88" y="61" fill="#654c4f" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="34" font-weight="700" letter-spacing="-1">Therapy in Question</text>
+</svg>
