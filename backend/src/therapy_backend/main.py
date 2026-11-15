@@ -12,8 +12,8 @@ from .auth import router as auth_router
 from .db import engine, mongo
 from .feedback import router as feedback_router
 from .gemini import client as gemini_client
-from .metrics import router as metrics_router
 from .messages import router as messages_router
+from .metrics import router as metrics_router
 from .programs import router as programs_router
 from .recordings import router as recordings_router
 from .sessions import router as sessions_router

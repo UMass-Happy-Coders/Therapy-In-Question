@@ -1,25 +1,32 @@
 <script lang="ts">
-	import { onDestroy, untrack } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import Webcam from '#lib/components/Webcam.svelte';
 	import JointAngles from '#lib/components/JointAngles.svelte';
 	import RepProgress from '#lib/components/RepProgress.svelte';
 	import HandRaiseControls from '#lib/components/HandRaiseControls.svelte';
+	import LiveFeedback from '#lib/components/LiveFeedback.svelte';
+	import ExerciseTutorial from '#lib/components/ExerciseTutorial.svelte';
 	import { JointAngleEstimator } from '#lib/pose/angles.js';
-	import { FramingGate, type RequiredJoint, type TrackedSide } from '#lib/pose/framing.js';
+	import { FramingGate, TRACKING_DROPOUT_MS, type RequiredJoint, type TrackedSide } from '#lib/pose/framing.js';
 	import { HandRaiseGesture, type HandRaiseState } from '#lib/pose/hand-raise.js';
 	import { RepCounter, makeRepSample } from '#lib/pose/rep-counter.js';
 	import { createRepProfile, type RepPhase } from '#lib/pose/rep-profile.js';
+	import { movementCue } from '#lib/pose/local-feedback.js';
 	import { startPoseTracking, type TrackerStatus } from '#lib/pose/tracker.js';
+	import { exerciseWalkthrough } from '#lib/pose/exercise-tutorial.js';
+	import { RecordingCountdown, startingPositionReady, type CountdownState } from '#lib/pose/recording-countdown.js';
 	import type { PoseCapture } from '#lib/pose/recording.js';
 	import type { ProgramExercise } from '#lib/programs.js';
-	import type { SetMeasurement } from '#lib/sessions.js';
+	import type { SetResult } from '#lib/sessions.js';
 
-	let { exercise, onfinish, finishLabel = 'Finish exercise', onrecord, recordingReady = true }: {
+	let { exercise, onfinish, finishLabel = 'Finish exercise', onrecord, recordingReady = true, sessionId, setOrdinal = 0 }: {
 		exercise: ProgramExercise;
-		onfinish?: (result: SetMeasurement) => void;
+		onfinish?: (result: SetResult) => void;
 		finishLabel?: string;
 		onrecord?: (frame: Omit<PoseCapture, 'setOrdinal' | 'exerciseId'>) => boolean;
 		recordingReady?: boolean;
+		sessionId?: string;
+		setOrdinal?: number;
 	} = $props();
 	const profile = untrack(() => createRepProfile(exercise));
 	const counter = untrack(() => new RepCounter(profile));
@@ -39,34 +46,50 @@
 	let visibleMask = $state(0);
 	let requiredMask = $state(0);
 	let stabilizing = $state(false);
+	let trackingGap = $state(false);
 	let joints = $state<readonly RequiredJoint[]>([]);
 	let kneeRaw = $state<number | null>(null);
 	let kneeFiltered = $state<number | null>(null);
 	let hipRaw = $state<number | null>(null);
 	let hipFiltered = $state<number | null>(null);
+	let ankleRaw = $state<number | null>(null);
+	let ankleFiltered = $state<number | null>(null);
 	let heightAvailable = $state(false);
 	let reps = $state(0);
 	let phase = $state<RepPhase>('rest');
 	let holdElapsedMs = $state(0);
 	let repCue = $state<string | null>(null);
-	let handsFreeEnabled = $state(false);
+	let handsFreeEnabled = $state(true);
 	let handRaiseState = $state<HandRaiseState>('waiting');
 	let handRaiseProgressMs = $state(0);
-	let handRaiseAction = $state<'paused' | 'resumed' | 'blocked' | null>(null);
+	let handRaiseAction = $state<'paused' | 'countdown' | 'canceled' | null>(null);
 	let elapsedMs = $state(0);
 	let gate: FramingGate;
 	let angleEstimator: JointAngleEstimator;
 	let generation = 0;
 	let lastFrameAt = 0;
+	let lastUsableAt = 0;
 	let accumulatedMs = 0;
 	let runningSince = 0;
 	let clock: ReturnType<typeof setInterval> | undefined;
 	let runId = '';
+	let tutorialComplete = $state(false);
+	let preparation = $state<CountdownState>({ armed: false, remaining: null });
+	let preparationNotice = $state('');
+	let positionReady = $state(false);
+	let countdown: RecordingCountdown | null = null;
+	let cameraHasRun = false;
+	const walkthrough = untrack(() => exerciseWalkthrough(exercise));
 
 	const finished = $derived(session === 'finished');
+	const ankleExercise = $derived(exercise.exercise_type === 'seated_ankle_pumps');
+	const feedbackCue = $derived(preparation.armed
+		? preparation.remaining === null ? walkthrough.steps[0].instruction : `Starting in ${preparation.remaining}.`
+		: movementCue(exercise, session, phase, reps, holdElapsedMs, repCue));
 	const requiredAnglesReady = $derived(
-		kneeFiltered !== null &&
-		(exercise.exercise_type === 'seated_knee_extension' || hipFiltered !== null)
+		ankleExercise ? ankleFiltered !== null :
+			kneeFiltered !== null &&
+			(exercise.exercise_type === 'seated_knee_extension' || hipFiltered !== null)
 	);
 	const requiredHeightReady = $derived(
 		exercise.exercise_type !== 'sit_to_stand' || heightAvailable
@@ -88,16 +111,80 @@
 					? 'Pose detection unavailable'
 					: status === 'loading'
 						? 'Loading pose detection'
-						: ready
+						: trackingGap ? 'Holding through a brief tracking gap'
+						: ready && visibleMask === requiredMask
 							? !requiredAnglesReady
 								? 'Joint tracking unavailable'
-								: !requiredHeightReady ? 'Hip height unavailable' : 'Framing ready'
+								: !requiredHeightReady ? 'Hip height unavailable' : 'Joints visible'
 							: !hasPose
-								? 'No pose detected'
+								? 'Move back until your full body is visible'
 								: stabilizing
 									? 'Checking framing'
 									: 'Joints not visible'
 	);
+
+	onMount(() => {
+		countdown = new RecordingCountdown(
+			(state) => preparation = state,
+			() => {
+				if (!beginPreparedExercise()) preparationNotice = 'Your position changed. Start another countdown when ready.';
+			}
+		);
+		const keydown = (event: KeyboardEvent) => {
+			if (!tutorialComplete || finished || event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
+			if (event.key === 'Escape' && (preparation.armed || session === 'running')) {
+				event.preventDefault();
+				if (session === 'running') pauseExercise();
+				else cancelCountdown();
+				return;
+			}
+			if (event.code !== 'Space' ||
+				event.target instanceof HTMLElement && event.target.closest('input, select, textarea, button, a, [contenteditable="true"]')) return;
+			event.preventDefault();
+			if (session === 'running') pauseExercise();
+			else if (preparation.armed) cancelCountdown();
+			else requestPreparation();
+		};
+		const visibilityChanged = () => {
+			if (document.hidden) pauseExercise('Exercise not visible');
+		};
+		window.addEventListener('keydown', keydown);
+		document.addEventListener('visibilitychange', visibilityChanged);
+		return () => {
+			window.removeEventListener('keydown', keydown);
+			document.removeEventListener('visibilitychange', visibilityChanged);
+		};
+	});
+
+	function requestPreparation(fromGesture = false): boolean {
+		if (!tutorialComplete || finished || session === 'running' || document.hidden || !countdown) return false;
+		if (preparation.armed) return true;
+		if (!fromGesture) resetHandRaise();
+		preparationNotice = '';
+		positionReady = false;
+		if (session === 'setup') counter.reset();
+		else counter.suspend();
+		copyCounter();
+		countdown.arm();
+		return true;
+	}
+
+	function cancelCountdown() {
+		countdown?.cancel();
+		positionReady = false;
+		preparationNotice = 'Countdown canceled. Start it again when you are ready.';
+	}
+
+	function prepareCamera() {
+		tutorialComplete = true;
+		requestPreparation();
+	}
+
+	function reviewMovement() {
+		pauseExercise();
+		preparationNotice = '';
+		tutorialComplete = false;
+	}
 
 	function copyCounter() {
 		reps = counter.reps;
@@ -134,8 +221,12 @@
 		kneeFiltered = null;
 		hipRaw = null;
 		hipFiltered = null;
+		ankleRaw = null;
+		ankleFiltered = null;
 		heightAvailable = false;
 		lastFrameAt = 0;
+		lastUsableAt = 0;
+		trackingGap = false;
 		copyGate();
 	}
 
@@ -151,6 +242,8 @@
 	}
 
 	function pauseExercise(reason: string | null = null, fromGesture = false) {
+		countdown?.cancel();
+		positionReady = false;
 		if (session !== 'running') return;
 		if (!fromGesture) resetHandRaise();
 		if (clock !== undefined) clearInterval(clock);
@@ -163,19 +256,19 @@
 		if (reason !== null) repCue = reason;
 	}
 
-	function beginExercise(fromGesture = false): boolean {
+	function beginPreparedExercise(): boolean {
 		if (
 			!canBegin ||
+			!positionReady ||
 			!video ||
 			!captureRunning(video) ||
 			document.hidden ||
 			performance.now() - lastFrameAt > 500 ||
 			(session !== 'setup' && session !== 'paused')
 		) return false;
-		if (!fromGesture) resetHandRaise();
 		if (!runId) runId = crypto.randomUUID();
-		if (session === 'setup') counter.reset();
-		else counter.suspend();
+		angleEstimator.lockAnkleNeutral();
+		handRaiseAction = null;
 		copyCounter();
 		runningSince = performance.now();
 		session = 'running';
@@ -191,7 +284,11 @@
 		counter.suspend();
 		copyCounter();
 		session = 'finished';
-		onfinish?.({ reps_completed: reps, elapsed_seconds: Math.round(elapsedMs) / 1000 });
+		onfinish?.({
+			reps_completed: reps,
+			elapsed_seconds: Math.round(elapsedMs) / 1000,
+			rep_metrics: counter.measurements.slice()
+		});
 	}
 
 	function selectSide(nextSide: TrackedSide) {
@@ -222,11 +319,15 @@
 		retry;
 
 		return untrack(() => {
+			if (!currentLive && cameraHasRun) countdown?.cancel();
+			cameraHasRun = currentLive;
 			const token = ++generation;
 			gate = new FramingGate(exerciseType, currentSide);
-			angleEstimator = new JointAngleEstimator(currentSide);
+			angleEstimator = new JointAngleEstimator(currentSide, exerciseType === 'seated_ankle_pumps');
 			clearFraming();
-			pauseExercise('Camera tracking unavailable');
+			positionReady = false;
+			if (session === 'running') pauseExercise('Camera tracking unavailable');
+			else countdown?.update(false, performance.now());
 			modelError = '';
 			status = 'loading';
 			captureAvailable = !!currentVideo && currentLive && captureRunning(currentVideo);
@@ -263,6 +364,7 @@
 			const stop = startPoseTracking({
 				video: currentVideo,
 				canvas: currentCanvas,
+				model: exerciseType === 'seated_ankle_pumps' ? 'heavy' : 'lite',
 				onFrame(landmarks, worldLandmarks, timestamp) {
 					if (generation !== token) return;
 					captureAvailable = live && captureRunning(currentVideo);
@@ -273,42 +375,72 @@
 					}
 					gate.update(landmarks, timestamp);
 					const angles = angleEstimator.update(landmarks, worldLandmarks, timestamp);
-					kneeRaw = angles.knee?.raw ?? null;
-					kneeFiltered = angles.knee?.filtered ?? null;
-					hipRaw = angles.hip?.raw ?? null;
-					hipFiltered = angles.hip?.filtered ?? null;
 					const sample = makeRepSample(
-						landmarks, currentSide, kneeFiltered, hipFiltered, timestamp
+						landmarks,
+						currentSide,
+						angles.knee?.filtered ?? null,
+						angles.hip?.filtered ?? null,
+						angles.ankle?.filtered ?? null,
+						timestamp
 					);
-					heightAvailable = sample.hipY !== null && sample.torsoHeight !== null;
 					lastFrameAt = timestamp;
-					copyGate();
-					if (session === 'running') {
-						if (!recordingReady || !ready || !requiredAnglesReady || !requiredHeightReady) {
-							pauseExercise(
-								!recordingReady ? 'Movement recording unavailable'
-									: !ready ? 'Required joints not visible'
-									: kneeFiltered === null ? 'Knee tracking unavailable'
-										: !requiredAnglesReady ? 'Hip tracking unavailable'
-											: 'Hip height unavailable'
-							);
-						} else {
-							counter.update(sample);
-							copyCounter();
-							if (onrecord && landmarks && worldLandmarks && !onrecord({
-								landmarks, worldLandmarks, timestamp,
-								elapsedMs: accumulatedMs + timestamp - runningSince,
-								phase, reps, cue: repCue, side: currentSide, runId
-							})) pauseExercise('Movement recording buffer full');
+					const usable = gate.visibleMask === gate.requiredMask &&
+						(exerciseType === 'seated_ankle_pumps'
+							? angles.ankle !== null
+							: angles.knee !== null &&
+								(exerciseType === 'seated_knee_extension' || angles.hip !== null)) &&
+						(exerciseType !== 'sit_to_stand' ||
+							(sample.hipY !== null && sample.torsoHeight !== null));
+					if (usable) lastUsableAt = timestamp;
+					trackingGap = !usable && gate.ready &&
+						timestamp - lastUsableAt <= TRACKING_DROPOUT_MS;
+					if (!trackingGap) {
+						kneeRaw = angles.knee?.raw ?? null;
+						kneeFiltered = angles.knee?.filtered ?? null;
+						hipRaw = angles.hip?.raw ?? null;
+						hipFiltered = angles.hip?.filtered ?? null;
+						ankleRaw = angles.ankle?.raw ?? null;
+						ankleFiltered = angles.ankle?.filtered ?? null;
+						heightAvailable = sample.hipY !== null && sample.torsoHeight !== null;
+						copyGate();
+						const runningAtFrame = session === 'running';
+						if (!runningAtFrame && preparation.armed) {
+							positionReady = canBegin && startingPositionReady(profile, sample);
+							if (positionReady) counter.update(sample);
+							else counter.suspend();
+							countdown?.update(positionReady, timestamp);
+						}
+						if (runningAtFrame && session === 'running') {
+							if (!recordingReady || !ready || !requiredAnglesReady || !requiredHeightReady) {
+								pauseExercise(
+									!recordingReady ? 'Movement recording unavailable'
+										: !ready || visibleMask !== requiredMask ? 'Required joints not visible'
+										: ankleExercise ? 'Ankle tracking unavailable'
+										: kneeFiltered === null ? 'Knee tracking unavailable'
+											: !requiredAnglesReady ? 'Hip tracking unavailable'
+												: 'Hip height unavailable'
+								);
+							} else {
+								counter.update(sample);
+								copyCounter();
+								if (onrecord && landmarks && worldLandmarks && !onrecord({
+									landmarks, worldLandmarks, timestamp,
+									elapsedMs: accumulatedMs + timestamp - runningSince,
+									phase, reps, cue: feedbackCue, side: currentSide, runId
+								})) pauseExercise('Movement recording buffer full');
+							}
 						}
 					}
-					if (handsFreeEnabled && (session === 'running' || session === 'paused')) {
+					if (handsFreeEnabled && !finished) {
 						if (handRaise.update(landmarks, timestamp)) {
 							if (session === 'running') {
 								pauseExercise(null, true);
 								handRaiseAction = 'paused';
+							} else if (preparation.armed) {
+								cancelCountdown();
+								handRaiseAction = 'canceled';
 							} else {
-								handRaiseAction = beginExercise(true) ? 'resumed' : 'blocked';
+								handRaiseAction = requestPreparation(true) ? 'countdown' : null;
 							}
 						}
 						handRaiseState = handRaise.state;
@@ -321,9 +453,13 @@
 					modelError = error ?? '';
 					if (nextStatus !== 'tracking') {
 						clearFraming();
-						pauseExercise(
-							nextStatus === 'error' ? 'Pose detection unavailable' : 'Joint tracking unavailable'
-						);
+						positionReady = false;
+						if (session === 'running') {
+							pauseExercise(nextStatus === 'error' ? 'Pose detection unavailable' : 'Joint tracking unavailable');
+						} else {
+							countdown?.update(false, performance.now());
+							if (nextStatus === 'error') countdown?.cancel();
+						}
 					}
 				}
 			});
@@ -345,117 +481,150 @@
 	onDestroy(() => {
 		generation += 1;
 		if (clock !== undefined) clearInterval(clock);
+		countdown?.dispose();
 	});
 </script>
 
-<div class="grid grid-cols-[minmax(0,1fr)_19rem] items-start gap-8">
-	<div class="w-full max-w-[960px]">
-		<section aria-label="Exercise camera" class="relative">
-			<Webcam bind:video bind:live />
-			<canvas
-				bind:this={canvas}
-				aria-hidden="true"
-				class="pointer-events-none absolute inset-0 h-full w-full -scale-x-100 object-contain"
-			></canvas>
-		</section>
-		<RepProgress
-			{reps}
-			{phase}
-			{holdElapsedMs}
-			holdMs={exercise.hold_seconds * 1000}
-			cue={session === 'running' || session === 'paused' ? repCue : null}
-		/>
-		<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} />
-	</div>
+{#if !tutorialComplete}
+	<ExerciseTutorial {exercise} oncontinue={prepareCamera} />
+{:else}
+	<div class="grid grid-cols-[minmax(0,1fr)_19rem] items-start gap-8">
+		<div class="w-full max-w-[960px]">
+			<section aria-label="Exercise camera" class="relative">
+				<Webcam bind:video bind:live autostart />
+				<canvas
+					bind:this={canvas}
+					aria-hidden="true"
+					class="pointer-events-none absolute inset-0 h-full w-full -scale-x-100 object-contain"
+				></canvas>
+			</section>
+			<LiveFeedback
+				{sessionId}
+				{setOrdinal}
+				running={session === 'running'}
+				preparing={preparation.armed}
+				{finished}
+				cue={feedbackCue}
+				corrective={repCue !== null || reps >= exercise.reps}
+				{reps}
+				{phase}
+				{elapsedMs}
+			/>
+			<RepProgress
+				exerciseType={exercise.exercise_type}
+				{reps}
+				{phase}
+				{holdElapsedMs}
+				holdMs={exercise.hold_seconds * 1000}
+			/>
+			<JointAngles {kneeRaw} {kneeFiltered} {hipRaw} {hipFiltered} {ankleRaw} {ankleFiltered} {ankleExercise} />
+		</div>
 
-	<section aria-labelledby="framing-heading" class="rounded-lg bg-[var(--surface)] p-6">
-		<h2 id="framing-heading" class="mb-6">Framing check</h2>
+		<section aria-labelledby="framing-heading" class="rounded-lg bg-[var(--surface)] p-6">
+			<h2 id="framing-heading" class="mb-6">Framing check</h2>
 
-		<fieldset disabled={session !== 'setup'} class="m-0 mb-6 min-w-0 border-0 p-0">
-			<legend class="mb-2 font-semibold">Tracking side</legend>
-			<div class="grid grid-cols-2 gap-3">
-				<label class="flex cursor-pointer items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 has-checked:bg-[var(--ash-grey)] has-disabled:cursor-default">
-					<input
-						type="radio"
-						name="tracking-side"
-						value="left"
-						checked={side === 'left'}
-						onchange={() => selectSide('left')}
-						class="accent-[var(--chocolate-plum)]"
-					/>
-					Left
-				</label>
-				<label class="flex cursor-pointer items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 has-checked:bg-[var(--ash-grey)] has-disabled:cursor-default">
-					<input
-						type="radio"
-						name="tracking-side"
-						value="right"
-						checked={side === 'right'}
-						onchange={() => selectSide('right')}
-						class="accent-[var(--chocolate-plum)]"
-					/>
-					Right
-				</label>
-			</div>
-		</fieldset>
+			<fieldset disabled={session !== 'setup'} class="m-0 mb-6 min-w-0 border-0 p-0">
+				<legend class="mb-2 font-semibold">Tracking side</legend>
+				<div class="grid grid-cols-2 gap-3">
+					<label class="flex cursor-pointer items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 has-checked:bg-[var(--ash-grey)] has-disabled:cursor-default">
+						<input
+							type="radio"
+							name="tracking-side"
+							value="left"
+							checked={side === 'left'}
+							onchange={() => selectSide('left')}
+							class="accent-[var(--chocolate-plum)]"
+						/>
+						Left
+					</label>
+					<label class="flex cursor-pointer items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 has-checked:bg-[var(--ash-grey)] has-disabled:cursor-default">
+						<input
+							type="radio"
+							name="tracking-side"
+							value="right"
+							checked={side === 'right'}
+							onchange={() => selectSide('right')}
+							class="accent-[var(--chocolate-plum)]"
+						/>
+						Right
+					</label>
+				</div>
+			</fieldset>
 
-		<p role="status" class="mb-5 font-semibold">{framingStatus}</p>
-		{#if profile.configurationError}
-			<p role="alert" class="mb-5 text-sm text-[var(--error)]">{profile.configurationError}</p>
-		{/if}
-
-		{#if !finished}
-			<ul aria-label="Required joint visibility" class="m-0 mb-6 list-none space-y-3 p-0">
-				{#each joints as joint, index (joint.index)}
-					<li class="flex items-baseline justify-between gap-3 text-sm">
-						<span>{joint.label}</span>
-						<span class="font-semibold">{(visibleMask & requiredMask & (1 << index)) !== 0 ? 'Visible' : 'Not visible'}</span>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-
-		{#if status === 'error' && !finished}
-			{#if modelError}
-				<p role="alert" class="mb-4 break-words text-sm text-[var(--error)]">{modelError}</p>
+			<p role="status" class="mb-5 font-semibold">{framingStatus}</p>
+			{#if profile.configurationError}
+				<p role="alert" class="mb-5 text-sm text-[var(--error)]">{profile.configurationError}</p>
 			{/if}
-			<button class="button-secondary mb-4 w-full" onclick={retryDetection} disabled={!live || !captureAvailable}>
-				Retry pose detection
-			</button>
-		{/if}
 
-		{#if session !== 'setup'}
-			<dl class="m-0 mb-6">
-				<dt>Active time</dt>
-				<dd class="m-0 text-3xl font-semibold tabular-nums">
-					<output aria-label="Exercise elapsed time">{elapsed}</output>
-				</dd>
-			</dl>
-		{/if}
+			{#if !finished}
+				<ul aria-label="Required joint visibility" class="m-0 mb-6 list-none space-y-3 p-0">
+					{#each joints as joint, index (joint.index)}
+						<li class="flex items-baseline justify-between gap-3 text-sm">
+							<span>{joint.label}</span>
+							<span class="font-semibold">{(visibleMask & requiredMask & (1 << index)) !== 0 ? 'Visible' : 'Not visible'}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 
-		{#if session === 'setup'}
-			<button class="w-full" onclick={() => beginExercise()} disabled={!canBegin}>Start exercise</button>
-		{:else if session !== 'finished'}
-			<p class="mb-4 font-semibold">{session === 'running' ? 'Exercise in progress' : 'Exercise paused'}</p>
-			<div class="flex flex-col gap-3">
-				{#if session === 'running'}
-					<button onclick={() => pauseExercise()}>Pause exercise</button>
-				{:else}
-					<button onclick={() => beginExercise()} disabled={!canBegin}>Resume exercise</button>
+			{#if status === 'error' && !finished}
+				{#if modelError}
+					<p role="alert" class="mb-4 break-words text-sm text-[var(--error)]">{modelError}</p>
 				{/if}
-				<button class="button-secondary" onclick={finishExercise}>{finishLabel}</button>
-			</div>
-		{/if}
+				<button class="button-secondary mb-4 w-full" onclick={retryDetection} disabled={!live || !captureAvailable}>
+					Retry pose detection
+				</button>
+			{/if}
 
-		<HandRaiseControls
-			enabled={handsFreeEnabled}
-			disabled={finished}
-			available={captureAvailable && status === 'tracking'}
-			active={session === 'running' || session === 'paused'}
-			state={handRaiseState}
-			progressMs={handRaiseProgressMs}
-			action={handRaiseAction}
-			onchange={setHandsFreeEnabled}
-		/>
-	</section>
-</div>
+			{#if session !== 'setup'}
+				<dl class="m-0 mb-6">
+					<dt>Active time</dt>
+					<dd class="m-0 text-3xl font-semibold tabular-nums">
+						<output aria-label="Exercise elapsed time">{elapsed}</output>
+					</dd>
+				</dl>
+			{/if}
+
+			{#if !finished}
+				{#if session === 'running'}
+					<p class="mb-4 font-semibold">Exercise in progress</p>
+					<button class="min-h-14 w-full text-lg" onclick={() => pauseExercise()}>Pause exercise</button>
+				{:else if preparation.armed}
+					<p role="status" class="mb-2 font-semibold">
+						{preparation.remaining !== null ? 'Hold still. Starting in' : canBegin ? 'Get into the starting position' : 'Waiting for your full body in view'}
+					</p>
+					{#if preparation.remaining !== null}
+						<output aria-label="Countdown" class="mb-4 block text-6xl font-semibold tabular-nums">{preparation.remaining}</output>
+					{/if}
+					<button class="button-secondary min-h-14 w-full text-lg" onclick={cancelCountdown}>Cancel countdown</button>
+				{:else}
+					{#if session === 'paused'}
+						<p class="mb-4 font-semibold">Exercise paused</p>
+					{/if}
+					<button class="min-h-14 w-full text-lg" onclick={() => requestPreparation()}>
+						{session === 'setup' ? 'Start 5-second countdown' : 'Resume with countdown'}
+					</button>
+				{/if}
+				{#if preparationNotice}
+					<p role="status" class="mb-0 mt-3 text-sm">{preparationNotice}</p>
+				{/if}
+				{#if session !== 'setup'}
+					<button class="button-secondary mt-3 w-full" onclick={finishExercise}>{finishLabel}</button>
+				{/if}
+				<button class="button-secondary mt-3 w-full" onclick={reviewMovement} disabled={session === 'running'}>Review the movement</button>
+				<p class="mb-0 mt-4 text-sm">Press Space to start a countdown or pause. Press Escape to cancel or pause.</p>
+			{/if}
+
+			<HandRaiseControls
+				enabled={handsFreeEnabled}
+				disabled={finished}
+				available={captureAvailable && status === 'tracking'}
+				active={!finished}
+				state={handRaiseState}
+				progressMs={handRaiseProgressMs}
+				action={handRaiseAction}
+				onchange={setHandsFreeEnabled}
+			/>
+		</section>
+	</div>
+{/if}
