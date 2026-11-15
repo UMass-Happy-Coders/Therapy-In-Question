@@ -3,12 +3,13 @@
 	import { beforeNavigate } from '$app/navigation';
 	import PoseSetup from '#lib/components/PoseSetup.svelte';
 	import MovementRecording from '#lib/components/MovementRecording.svelte';
+	import SessionMetrics from '#lib/components/SessionMetrics.svelte';
 	import { MovementRecorder, type RecordingState } from '#lib/pose/recording.js';
-	import { isPatientSession, sessionSteps, type PatientSession, type SetMeasurement } from '#lib/sessions.js';
+	import { isPatientSession, sessionSteps, type PatientSession, type SetResult } from '#lib/sessions.js';
 
 	let { initial }: { initial: PatientSession } = $props();
 	let session = $state(untrack(() => initial));
-	let measurement = $state<SetMeasurement | null>(null);
+	let measurement = $state<SetResult | null>(null);
 	let pain = $state<number | undefined>();
 	let difficulty = $state<number | undefined>();
 	let comfort = $state<number | undefined>();
@@ -138,16 +139,22 @@
 				{/each}
 			</tbody>
 		</table>
+		<div class="mt-10">
+			<SessionMetrics {session} />
+		</div>
 	{:else}
-		<h1>{session.program.name}</h1>
-		<p class="mb-6 text-lg">{step.exercise.name} - Set {step.set_number} of {step.exercise.sets}</p>
-		<p class="mb-6">{session.sets.length} of {plan.length} sets logged</p>
-		<dl class="mb-8 grid max-w-4xl grid-cols-3 gap-6">
+		<div class="mb-6 flex items-end justify-between gap-8">
+			<div>
+				<h1>{session.program.name}</h1>
+				<p class="mb-0 text-lg">{step.exercise.name} - Set {step.set_number} of {step.exercise.sets}</p>
+			</div>
+			<p class="mb-0">{session.sets.length} of {plan.length} sets logged</p>
+		</div>
+		<dl class="mb-6 grid max-w-4xl grid-cols-3 gap-6">
 			<div><dt>Target reps</dt><dd class="m-0 text-lg font-semibold">{step.exercise.reps}</dd></div>
 			<div><dt>{step.exercise.target_label}</dt><dd class="m-0 text-lg font-semibold">{step.exercise.target_angle} degrees</dd></div>
-			<div><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} seconds` : 'No hold'}</dd></div>
+			<div><dt>Hold per rep</dt><dd class="m-0 text-lg font-semibold">{step.exercise.hold_seconds ? `${step.exercise.hold_seconds} ${step.exercise.hold_seconds === 1 ? 'second' : 'seconds'}` : 'No hold'}</dd></div>
 		</dl>
-		<MovementRecording state={recording} onretry={retryRecording} />
 		{#if measurement}
 			<section aria-labelledby="set-log-heading" class="max-w-4xl rounded-lg bg-[var(--surface)] p-8">
 				<h2 id="set-log-heading">Log set {step.set_number}</h2>
@@ -155,6 +162,29 @@
 					<div><dt>Reps recorded</dt><dd class="m-0 text-2xl font-semibold">{measurement.reps_completed} / {step.exercise.reps}</dd></div>
 					<div><dt>Active time</dt><dd class="m-0 text-2xl font-semibold tabular-nums">{activeTime(measurement.elapsed_seconds)}</dd></div>
 				</dl>
+				{#if measurement.rep_metrics.length}
+					<table class="mb-8 w-full border-collapse text-left text-sm">
+						<caption class="mb-3 text-left font-semibold">Measured reps (camera estimates)</caption>
+						<thead class="bg-[var(--ash-grey)]">
+							<tr>
+								<th scope="col" class="p-3">Rep</th><th scope="col" class="p-3">Start</th>
+								<th scope="col" class="p-3">Peak</th><th scope="col" class="p-3">Range of motion</th>
+								<th scope="col" class="p-3">Rep time</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each measurement.rep_metrics as rep (rep.rep_number)}
+								<tr>
+									<th scope="row" class="p-3 font-semibold tabular-nums">{rep.rep_number}</th>
+									<td class="p-3 tabular-nums">{rep.start_angle.toFixed(1)} deg</td>
+									<td class="p-3 tabular-nums">{rep.peak_angle.toFixed(1)} deg</td>
+									<td class="p-3 tabular-nums">{(rep.peak_angle - rep.start_angle).toFixed(1)} deg</td>
+									<td class="p-3 tabular-nums">{(rep.duration_ms / 1000).toFixed(1)} s</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{/if}
 				<form onsubmit={saveSet} aria-busy={pending}>
 					<fieldset disabled={pending} class="m-0 min-w-0 border-0 p-0">
 						<legend class="sr-only">Pain, difficulty, and comfort for this set</legend>
@@ -194,6 +224,8 @@
 			{#key session.sets.length}
 				<PoseSetup
 					exercise={step.exercise}
+					sessionId={session.id}
+					setOrdinal={session.sets.length}
 					finishLabel="End set"
 					recordingReady={recording.ready}
 					onrecord={(frame) => recorder.capture({ ...frame, setOrdinal: session.sets.length, exerciseId: step.exercise.id })}
@@ -201,5 +233,8 @@
 				/>
 			{/key}
 		{/if}
+		<div class="mt-8">
+			<MovementRecording state={recording} onretry={retryRecording} />
+		</div>
 	{/if}
 </main>

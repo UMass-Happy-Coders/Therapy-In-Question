@@ -4,10 +4,11 @@ from uuid import UUID, uuid4
 
 import jwt
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
-from pydantic import BaseModel, EmailStr, Field, field_validator
 from pwdlib import PasswordHash
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import delete, select
 from starlette.concurrency import run_in_threadpool
+from starlette.requests import HTTPConnection
 
 from .config import get_settings
 from .db import DB
@@ -95,7 +96,7 @@ def decode_session(token: str | None) -> tuple[UUID, UUID] | None:
         return None
 
 
-async def get_current_user(request: Request, db: DB) -> UserResponse:
+async def get_current_user(request: HTTPConnection, db: DB) -> UserResponse:
     identity = decode_session(request.cookies.get(COOKIE_NAME))
     if identity is None:
         raise HTTPException(status_code=401, detail="Not authenticated.")

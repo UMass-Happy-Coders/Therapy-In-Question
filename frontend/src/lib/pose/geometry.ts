@@ -23,6 +23,32 @@ export function jointAngle(first: Point3D, vertex: Point3D, last: Point3D): numb
 	return Math.acos(Math.max(-1, Math.min(1, cosine))) * DEGREES;
 }
 
+export function anklePlantarFlexionAngle(
+	knee: Point3D,
+	ankle: Point3D,
+	heel: Point3D,
+	toe: Point3D
+): number | null {
+	const shinX = knee.x - ankle.x;
+	const shinY = knee.y - ankle.y;
+	const shinZ = knee.z - ankle.z;
+	const footX = toe.x - heel.x;
+	const footY = toe.y - heel.y;
+	const footZ = toe.z - heel.z;
+	const shinLength = Math.hypot(shinX, shinY, shinZ);
+	const footLength = Math.hypot(footX, footY, footZ);
+	if (
+		!Number.isFinite(shinLength) || !Number.isFinite(footLength) ||
+		shinLength < MIN_LENGTH || footLength < MIN_LENGTH
+	) {
+		return null;
+	}
+	const cosine = (shinX / shinLength) * (footX / footLength) +
+		(shinY / shinLength) * (footY / footLength) +
+		(shinZ / shinLength) * (footZ / footLength);
+	return Math.acos(Math.max(-1, Math.min(1, cosine))) * DEGREES - 90;
+}
+
 export function hipFlexionAngle(
 	shoulder: Point3D,
 	hip: Point3D,

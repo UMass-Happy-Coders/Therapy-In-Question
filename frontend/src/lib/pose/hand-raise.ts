@@ -34,15 +34,14 @@ export class HandRaiseGesture {
 		let validMask = 0;
 		let raisedMask = 0;
 		let loweredMask = 0;
-		const nose = landmarks?.[0];
 		for (let arm = 0; arm < 2; arm++) {
 			const shoulder = landmarks?.[11 + arm];
 			const elbow = landmarks?.[13 + arm];
 			const wrist = landmarks?.[15 + arm];
-			if (!reliable(nose) || !reliable(shoulder) || !reliable(elbow) || !reliable(wrist)) continue;
+			if (!reliable(shoulder) || !reliable(elbow) || !reliable(wrist)) continue;
 			const bit = 1 << arm;
 			validMask |= bit;
-			if (wrist.y < nose.y - 0.03 && elbow.y < shoulder.y) raisedMask |= bit;
+			if (wrist.y < shoulder.y - 0.04 && elbow.y < shoulder.y + 0.04) raisedMask |= bit;
 			else if (wrist.y > shoulder.y + 0.04) loweredMask |= bit;
 		}
 

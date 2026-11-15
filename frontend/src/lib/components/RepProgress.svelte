@@ -1,19 +1,28 @@
 <script lang="ts">
 	import type { RepPhase } from '#lib/pose/rep-profile.js';
+	import type { ExerciseType } from '#lib/programs.js';
 
 	let {
+		exerciseType,
 		reps,
 		phase,
 		holdElapsedMs,
-		holdMs,
-		cue
+		holdMs
 	}: {
+		exerciseType: ExerciseType;
 		reps: number;
 		phase: RepPhase;
 		holdElapsedMs: number;
 		holdMs: number;
-		cue: string | null;
 	} = $props();
+
+	const phaseLabel = $derived(
+		exerciseType === 'seated_ankle_pumps' && phase === 'raise'
+			? 'Point'
+			: exerciseType === 'seated_ankle_pumps' && phase === 'lower'
+				? 'Return'
+				: phase[0].toUpperCase() + phase.slice(1)
+	);
 </script>
 
 <section aria-labelledby="rep-progress-heading" class="pt-6">
@@ -28,7 +37,7 @@
 		<div>
 			<dt class="mb-1 font-semibold">Exercise phase</dt>
 			<dd class="m-0">
-				<output aria-label="Exercise phase" class="text-lg">{phase[0].toUpperCase()}{phase.slice(1)}</output>
+				<output aria-label="Exercise phase" class="text-lg">{phaseLabel}</output>
 			</dd>
 		</div>
 		<div>
@@ -44,7 +53,4 @@
 			</dd>
 		</div>
 	</dl>
-	{#if cue}
-		<p role="status" class="mb-0 mt-4 font-semibold text-[var(--error)]">{cue}</p>
-	{/if}
 </section>
