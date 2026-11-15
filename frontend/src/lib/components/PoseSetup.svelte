@@ -363,7 +363,7 @@
 </script>
 
 {#if ankleExercise}
-	<p class="mb-6 max-w-4xl">Sit with your leg supported and your foot free to move. Keep the selected knee, ankle, heel and toes in the side view. Only do this exercise if assigned by your therapist; stop if pain increases.</p>
+	<p class="mb-6 max-w-4xl">Sit with your leg supported and your foot free to move. Keep your full body in view, with the selected knee, ankle, heel and toes clearly visible from the side. Only do this exercise if assigned by your therapist; stop if pain increases.</p>
 {/if}
 
 <div class="grid grid-cols-[minmax(0,1fr)_19rem] items-start gap-8">
